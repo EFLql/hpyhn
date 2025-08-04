@@ -1,4 +1,4 @@
-import { syncHnPosts } from '../../scripts/sync-hn-posts'
+import { syncHnPosts } from '../../../scripts/sync-hn-posts'
 
 export async function GET() {
   try {

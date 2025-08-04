@@ -95,7 +95,7 @@ async function fetchComments(postId) {
 // 同步到 Supabase - 修改为批量写入
 export async function syncHnPosts(type = 'front_page', limit = 200) {
   try {
-    console.log(`开始同步 Hacker News ${type} 数据，数量: ${limit}，偏移: ${offset}...`)
+    console.log(`开始同步 Hacker News ${type} 数据，数量: ${limit}...`)
     const stories = await fetchTopStories(type, limit)
     
     // 应用偏移量

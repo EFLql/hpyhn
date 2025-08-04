@@ -1,10 +1,4 @@
 {
-  "builds": [
-    {
-      "src": "src/pages/api/**/*.js",
-      "use": "@vercel/node"
-    }
-  ],
   "crons": [
     {
       "path": "/api/sync-hn-posts",
@@ -12,11 +6,11 @@
     },
     {
       "path": "/api/cron/generate-summaries",
-      "schedule": "*/1 * * * * *"
+      "schedule": "*/1 * * * *"
     },
     {
       "path": "/api/cron/extract-features",
-      "schedule": "*/1 * * * * *"
+      "schedule": "*/1 * * * *"
     }
   ]
 }
