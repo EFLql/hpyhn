@@ -1,0 +1,29 @@
+{
+  "builds": [
+    {
+      "src": "src/pages/api/**/*.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "functions": {
+    "src/pages/api/**/*.js": {
+      "runtime": "nodejs18.x",
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/sync-hn-posts",
+      "schedule": "*/20 * * * *" 
+    },
+    {
+      "path": "/api/cron/generate-summaries",
+      "schedule": "*/1 * * * * *"
+    },
+    {
+      "path": "/api/cron/extract-features",
+      "schedule": "*/1 * * * * *"
+    }
+  ]
+}
