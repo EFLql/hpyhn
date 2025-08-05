@@ -25,6 +25,9 @@ export default function Home({ initialType }) {
   const [userInterests, setUserInterests] = useState({});
   // 在组件内部添加新的状态来存储实时获取的评论
   const [liveComments, setLiveComments] = useState({}); // 存储实时获取的评论
+  // 添加分页相关状态
+  const [currentPage, setCurrentPage] = useState(1);
+  const postsPerPage = 30; // 每页显示30条数据
 
   useEffect(() => {
     fetchPosts(initialType || (pathname === '/newest' ? 'newest' : 'front_page'))
@@ -58,45 +61,157 @@ export default function Home({ initialType }) {
     setSession(data.session)
   }
 
-  async function fetchPosts(type = 'front_page') {
+    async function fetchPosts(type = 'front_page') {
     setLoading(true)
     try {
-      let query = supabase
-        .from('hn_posts')
-        .select(`
-        id,
-        hn_id,
-        title,
-        url,
-        points,
-        created_at,
-        descendants,
-        user_id,
-        content_summary
-      `)
-      
-      if (type === 'newest') {
-        query = query.order('created_at', { ascending: false })
-      }
-
-      const { data: hnPosts = [] } = await query
+      if (type === 'front_page') {
+        // 使用 JOIN 一次性获取 hn_front_page_posts 和 hn_posts 数据
+        const { data, error } = await supabase
+          .from('hn_front_page_posts')
+          .select(`
+            created_at,
+            hn_posts (
+              id,
+              hn_id,
+              title,
+              url,
+              points,
+              created_at,
+              descendants,
+              user_id,
+              content_summary
+            )
+          `)
+          .order('created_at', { ascending: false })
+          .limit(100);
   
-      const formattedHnPosts = (hnPosts || []).map(post => ({
-        ...post,
-        source: 'hn',
-        comments_count: post.descendants,
-        user: { username: post.user_id || 'anonymous' },
-        comments: post.comments || []
-      }))
-
-      setPosts(formattedHnPosts)
+        if (error) throw error;
+  
+        // 过滤掉 hn_posts 为 null 的记录并格式化数据
+        const formattedHnPosts = data
+          .filter(item => item.hn_posts !== null)
+          .map(item => ({
+            ...item.hn_posts,
+            source: 'hn',
+            comments_count: item.hn_posts.descendants,
+            user: { username: item.hn_posts.user_id || 'anonymous' },
+            comments: item.hn_posts.comments || []
+          }));
+  
+        setPosts(formattedHnPosts)
+      } else if (type === 'newest') {
+        // 使用 JOIN 一次性获取 hn_news_posts 和 hn_posts 数据
+        const { data, error } = await supabase
+          .from('hn_news_posts')
+          .select(`
+            created_at,
+            hn_posts (
+              id,
+              hn_id,
+              title,
+              url,
+              points,
+              created_at,
+              descendants,
+              user_id,
+              content_summary
+            )
+          `)
+          .order('created_at', { ascending: false })
+          .limit(100);
+  
+        if (error) throw error;
+  
+        // 过滤掉 hn_posts 为 null 的记录并格式化数据
+        const formattedHnPosts = data
+          .filter(item => item.hn_posts !== null)
+          .map(item => ({
+            ...item.hn_posts,
+            source: 'hn',
+            comments_count: item.hn_posts.descendants,
+            user: { username: item.hn_posts.user_id || 'anonymous' },
+            comments: item.hn_posts.comments || []
+          }));
+  
+        setPosts(formattedHnPosts)
+      } else if (type === 'ask') {
+        // 使用 JOIN 一次性获取 hn_ask_posts 和 hn_posts 数据
+        const { data, error } = await supabase
+          .from('hn_ask_posts')
+          .select(`
+            created_at,
+            hn_posts (
+              id,
+              hn_id,
+              title,
+              url,
+              points,
+              created_at,
+              descendants,
+              user_id,
+              content_summary
+            )
+          `)
+          .order('created_at', { ascending: false })
+          .limit(100);
+  
+        if (error) throw error;
+  
+        // 过滤掉 hn_posts 为 null 的记录并格式化数据
+        const formattedHnPosts = data
+          .filter(item => item.hn_posts !== null)
+          .map(item => ({
+            ...item.hn_posts,
+            source: 'hn',
+            comments_count: item.hn_posts.descendants,
+            user: { username: item.hn_posts.user_id || 'anonymous' },
+            comments: item.hn_posts.comments || []
+          }));
+  
+        setPosts(formattedHnPosts)
+      } else if (type === 'show') {
+        // 使用 JOIN 一次性获取 hn_show_posts 和 hn_posts 数据
+        const { data, error } = await supabase
+          .from('hn_show_posts')
+          .select(`
+            created_at,
+            hn_posts (
+              id,
+              hn_id,
+              title,
+              url,
+              points,
+              created_at,
+              descendants,
+              user_id,
+              content_summary
+            )
+          `)
+          .order('created_at', { ascending: false })
+          .limit(100);
+  
+        if (error) throw error;
+  
+        // 过滤掉 hn_posts 为 null 的记录并格式化数据
+        const formattedHnPosts = data
+          .filter(item => item.hn_posts !== null)
+          .map(item => ({
+            ...item.hn_posts,
+            source: 'hn',
+            comments_count: item.hn_posts.descendants,
+            user: { username: item.hn_posts.user_id || 'anonymous' },
+            comments: item.hn_posts.comments || []
+          }));
+  
+        setPosts(formattedHnPosts)
+      }
     } catch (error) {
       console.error('Error fetching posts:', error)
       setPosts([])
-    } finally {
-      setLoading(false)
-    }
+  } finally {
+    setLoading(false)
   }
+}
 
   async function fetchUserInterests() {
     const { data } = await supabase
@@ -361,6 +476,8 @@ export default function Home({ initialType }) {
     }
   };
 
+  // ...existing code...
+  // ...existing code...
   return (
     <div className="max-w-4xl mx-auto px-4 py-2 bg-orange-50 relative min-h-screen">
       {session && (
@@ -385,9 +502,9 @@ export default function Home({ initialType }) {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                同步中...
+                Syncing...
               </>
-            ) : '手动同步HN数据'}
+            ) : 'Manual Sync HN Data'}
           </button>
         </div>
       )}
@@ -401,13 +518,33 @@ export default function Home({ initialType }) {
       <Link 
         href="/newest" 
         className="text-white hover:underline"
-        onClick={() => fetchPosts('newest')}
+        onClick={() => {
+          setCurrentPage(1);
+          fetchPosts('newest');
+        }}
       >
         new
       </Link>
-      <Link href="/ask" className="text-white hover:underline">ask</Link>
-      <Link href="/show" className="text-white hover:underline">show</Link>
-      <Link href="/jobs" className="text-white hover:underline">jobs</Link>
+      <Link 
+        href="/ask" 
+        className="text-white hover:underline"
+        onClick={() => {
+          setCurrentPage(1);
+          fetchPosts('ask');
+        }}
+      >
+        ask
+      </Link>
+      <Link 
+        href="/show" 
+        className="text-white hover:underline"
+        onClick={() => {
+          setCurrentPage(1);
+          fetchPosts('show');
+        }}
+      >
+        show
+      </Link>
     </nav>
   </div>
   {!session && (
@@ -453,150 +590,186 @@ export default function Home({ initialType }) {
           </div>
         ) : posts.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
-            暂无文章数据
+            No posts available
           </div>
         ) : (
-          <ol className="list-none">
-            {posts.map((post, index) => (
-              <li key={post.id} className="py-2 px-1 hover:bg-gray-50">
-                <div className="flex items-baseline">
-                  <span className="text-gray-500 mr-1">{index + 1}.</span>
-                  {post.source === 'hn' ? (
-                    <span className="text-xs bg-orange-100 text-orange-800 px-1 rounded mr-1">HN</span>
-                  ) : (
-                    <button 
-                      onClick={() => handleUpvote(post.hn_id)}
-                      className="text-gray-500 hover:text-orange-500 mr-1"
-                      aria-label="Upvote"
-                    >
-                      ▲
-                    </button>
-                  )}
-                  <div className="flex-1">
-                    <div className="flex flex-wrap items-baseline">
-                      <a 
-                        href={post.url} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-black hover:underline mr-1"
+          <>
+            <ol className="list-none">
+              {/* Calculate data to display for current page */}
+              {posts
+                .slice((currentPage - 1) * postsPerPage, currentPage * postsPerPage)
+                .map((post, index) => (
+                <li key={post.id} className="py-2 px-1 hover:bg-gray-50">
+                  <div className="flex items-baseline">
+                    <span className="text-gray-500 mr-1">{(currentPage - 1) * postsPerPage + index + 1}.</span>
+                    {post.source === 'hn' ? (
+                      <span className="text-xs bg-orange-100 text-orange-800 px-1 rounded mr-1">HN</span>
+                    ) : (
+                      <button 
+                        onClick={() => handleUpvote(post.hn_id)}
+                        className="text-gray-500 hover:text-orange-500 mr-1"
+                        aria-label="Upvote"
                       >
-                        {post.title}
-                      </a>
-                      {/* 文章类型标签显示在标题后面 */}
+                        ▲
+                      </button>
+                    )}
+                    <div className="flex-1">
+                      <div className="flex flex-wrap items-baseline">
+                        <a 
+                          href={post.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-black hover:underline mr-1"
+                        >
+                          {post.title}
+                        </a>
+                        {/* Article type tag displayed after title */}
+                        {post.content_summary && (() => {
+                          const summaryData = parseSummaryContent(post.content_summary);
+                          if (summaryData && summaryData.articleType && summaryData.articleType !== 'Unable to get article type') {
+                            return (
+                              <span className="text-xs bg-blue-100 text-blue-800 px-1 rounded ml-1">
+                                {summaryData.articleType}
+                              </span>
+                            );
+                          }
+                        })()}
+                        {post.url && (
+                          <span className="text-gray-500 text-xs ml-1">
+                            ({new URL(post.url).hostname.replace('www.', '')})
+                          </span>
+                        )}
+                      </div>
+                      {/* Modify keyword display section, limit to maximum 12 keywords */}
                       {post.content_summary && (() => {
                         const summaryData = parseSummaryContent(post.content_summary);
-                        if (summaryData && summaryData.articleType && summaryData.articleType !== '无法获取文章类型') {
+                        if (summaryData && summaryData.keywords && summaryData.keywords !== 'Unable to get keywords') {
+                          // Split keywords and limit to maximum 12
+                          const keywords = summaryData.keywords.split(',').slice(0, 12).join(', ');
                           return (
-                            <span className="text-xs bg-blue-100 text-blue-800 px-1 rounded ml-1">
-                              {summaryData.articleType}
-                            </span>
+                            <div className="text-xs text-gray-600 mt-1">
+                              Keywords: {keywords}
+                            </div>
                           );
                         }
                       })()}
-                      {post.url && (
-                        <span className="text-gray-500 text-xs ml-1">
-                          ({new URL(post.url).hostname.replace('www.', '')})
-                        </span>
-                      )}
-                    </div>
-                    {/*修改关键字显示部分，限制最多显示12个关键词 */}
-                    {post.content_summary && (() => {
-                      const summaryData = parseSummaryContent(post.content_summary);
-                      if (summaryData && summaryData.keywords && summaryData.keywords !== '无法获取关键词') {
-                        // 分割关键词并限制最多显示12个
-                        const keywords = summaryData.keywords.split(',').slice(0, 12).join(', ');
-                        return (
-                          <div className="text-xs text-gray-600 mt-1">
-                            关键词: {keywords}
-                          </div>
-                        );
-                      }
-                    })()}
-                    <div className="text-xs text-gray-500 mt-1 flex justify-between items-center">
-                      <div>
-                        {post.points || 0} points by {post.user?.username || 'anonymous'} {timeago.format(new Date(post.created_at))} | 
-                        <button 
-                          onClick={() => toggleComments(post.hn_id)}
-                          className="hover:underline ml-1"
-                        >
-                          {post.comments_count || 0} comments
-                          {post.source === 'hn' && post.comments_count > 0 && (
-                            <span className="ml-1">({expandedComments[post.hn_id] ? 'collapse' : 'show top3 comments'})</span>
-                          )}
-                        </button>
-                        {/* 摘要展开/收缩按钮 */}
-                        {post.content_summary && (
+                      <div className="text-xs text-gray-500 mt-1 flex justify-between items-center">
+                        <div>
+                          {post.points || 0} points by {post.user?.username || 'anonymous'} {timeago.format(new Date(post.created_at))} | 
                           <button 
-                            onClick={() => toggleSummary(post.hn_id)}
-                            className="hover:underline ml-2"
+                            onClick={() => toggleComments(post.hn_id)}
+                            className="hover:underline ml-1"
                           >
-                            ({expandedSummaries[post.hn_id] ? 'hide summary' : 'show summary'})
+                            {post.comments_count || 0} comments
+                            {post.source === 'hn' && post.comments_count > 0 && (
+                              <span className="ml-1">({expandedComments[post.hn_id] ? 'collapse' : 'show top3 comments'})</span>
+                            )}
                           </button>
+                          {/* Summary expand/collapse button */}
+                          {post.content_summary && (
+                            <button 
+                              onClick={() => toggleSummary(post.hn_id)}
+                              className="hover:underline ml-2"
+                            >
+                              ({expandedSummaries[post.hn_id] ? 'hide summary' : 'show summary'})
+                            </button>
+                          )}
+                        </div>
+                        {session && (
+                          <div className="ml-auto">
+                            <FacebookReaction 
+                              postId={post.hn_id}
+                              currentReaction={userInterests[post.hn_id]}
+                              onSelect={(postId, reaction) => handleInterest(postId, reaction)}
+                            />
+                          </div>
                         )}
                       </div>
-                      {session && (
-                        <div className="ml-auto">
-                          <FacebookReaction 
-                            postId={post.hn_id}
-                            currentReaction={userInterests[post.hn_id]}
-                            onSelect={(postId, reaction) => handleInterest(postId, reaction)}
+                    </div>
+                  </div>
+
+                  {/* Summary and keywords show/hide logic */}
+                  {post.source === 'hn' && expandedSummaries[post.hn_id] && post.content_summary && (
+                    <div className="mt-2 ml-6 p-3 bg-blue-50 rounded border border-blue-200">
+                      <div className="text-xs font-medium text-blue-800 mb-1">Article Summary:</div>
+                      <div className="text-xs text-gray-700">
+                        {(() => {
+                          const summaryData = parseSummaryContent(post.content_summary);
+                          if (!summaryData) return 'No summary content available';
+                          
+                          // Only display summary content, not keywords
+                          if (summaryData.contentSummary && summaryData.contentSummary !== 'Unable to generate content summary') {
+                            return <div>{summaryData.contentSummary}</div>;
+                          }
+                          
+                          return 'No summary content available';
+                        })()}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Comments show/hide logic */}
+                  {post.source === 'hn' && expandedComments[post.hn_id] && (
+                    <div className="mt-2 ml-6 space-y-2 border-l-2 pl-2 border-orange-200">
+                      {/* Display live comments or preloaded comments */}
+                      {(liveComments[post.hn_id] || post.comments || []).map(comment => (
+                        <div key={comment.id} className="text-xs text-gray-600">
+                          <div className="font-medium text-gray-800">
+                            {comment.user_id || 'anonymous'} · 
+                            {timeago.format(new Date(comment.created_at))}
+                          </div>
+                          <div 
+                            className="mt-1 whitespace-pre-wrap break-words prose prose-sm max-w-none"
+                            dangerouslySetInnerHTML={{ __html: formatCommentText(comment.text) }}
                           />
+                        </div>
+                      ))}
+                      
+                      {/* If live comments haven't been fetched yet and preloaded comments are empty, show loading state */}
+                      {expandedComments[post.hn_id] && 
+                       !liveComments[post.hn_id] && 
+                       (!post.comments || post.comments.length === 0) && (
+                        <div className="text-xs text-gray-500">
+                          Loading comments...
                         </div>
                       )}
                     </div>
-                  </div>
-                </div>
-
-                {/* 摘要和关键词显示/隐藏逻辑 */}
-                {post.source === 'hn' && expandedSummaries[post.hn_id] && post.content_summary && (
-                  <div className="mt-2 ml-6 p-3 bg-blue-50 rounded border border-blue-200">
-                    <div className="text-xs font-medium text-blue-800 mb-1">文章摘要:</div>
-                    <div className="text-xs text-gray-700">
-                      {(() => {
-                        const summaryData = parseSummaryContent(post.content_summary);
-                        if (!summaryData) return '暂无摘要内容';
-                        
-                        // 只显示摘要内容，不显示关键词
-                        if (summaryData.contentSummary && summaryData.contentSummary !== '无法生成内容摘要') {
-                          return <div>{summaryData.contentSummary}</div>;
-                        }
-                        
-                        return '暂无摘要内容';
-                      })()}
-                    </div>
-                  </div>
-                )}
-
-                {/* 评论显示/隐藏逻辑 */}
-                {post.source === 'hn' && expandedComments[post.hn_id] && (
-                  <div className="mt-2 ml-6 space-y-2 border-l-2 pl-2 border-orange-200">
-                    {/* 显示实时获取的评论或预加载的评论 */}
-                    {(liveComments[post.hn_id] || post.comments || []).map(comment => (
-                      <div key={comment.id} className="text-xs text-gray-600">
-                        <div className="font-medium text-gray-800">
-                          {comment.user_id || 'anonymous'} · 
-                          {timeago.format(new Date(comment.created_at))}
-                        </div>
-                        <div 
-                          className="mt-1 whitespace-pre-wrap break-words prose prose-sm max-w-none"
-                          dangerouslySetInnerHTML={{ __html: formatCommentText(comment.text) }}
-                        />
-                      </div>
-                    ))}
-                    
-                    {/* 如果还没有获取实时评论且预加载评论为空，显示加载状态 */}
-                    {expandedComments[post.hn_id] && 
-                     !liveComments[post.hn_id] && 
-                     (!post.comments || post.comments.length === 0) && (
-                      <div className="text-xs text-gray-500">
-                        正在加载评论...
-                      </div>
-                    )}
-                  </div>
-                )}
-              </li>
-            ))}
-          </ol>
+                  )}
+                </li>
+              ))}
+            </ol>
+            
+            {/* Pagination controls */}
+            <div className="flex justify-center items-center py-4 space-x-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className={`px-3 py-1 rounded ${
+                  currentPage === 1 
+                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed' 
+                    : 'bg-orange-500 text-white hover:bg-orange-600'
+                }`}
+              >
+                Previous
+              </button>
+              
+              <span className="text-sm text-gray-600">
+                Page {currentPage} of {Math.ceil(posts.length / postsPerPage)}
+              </span>
+              
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(posts.length / postsPerPage)))}
+                disabled={currentPage === Math.ceil(posts.length / postsPerPage)}
+                className={`px-3 py-1 rounded ${
+                  currentPage === Math.ceil(posts.length / postsPerPage)
+                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed' 
+                    : 'bg-orange-500 text-white hover:bg-orange-600'
+                }`}
+              >
+                Next
+              </button>
+            </div>
+          </>
         )}
       </main>
       

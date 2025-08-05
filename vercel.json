@@ -1,16 +1,21 @@
 {
+  "version": 2,
   "crons": [
     {
-      "path": "/api/sync-hn-posts",
+      "path": "/api/sync-front-page",
       "schedule": "*/20 * * * *" 
     },
     {
-      "path": "/api/cron/generate-summaries",
-      "schedule": "*/1 * * * *"
+      "path": "/api/sync-ask",
+      "schedule": "*/20 * * * *" 
     },
     {
-      "path": "/api/cron/extract-features",
-      "schedule": "*/1 * * * *"
+      "path": "/api/sync-news",
+      "schedule": "*/20 * * * *" 
+    },
+    {
+      "path": "/api/sync-show",
+      "schedule": "*/20 * * * *" 
     }
   ]
 }
