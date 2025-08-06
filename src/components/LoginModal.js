@@ -64,15 +64,15 @@ export default function LoginModal({ isOpen, onClose, onRegisterClick }) {
   if (!isOpen) return null
 
   return (
+  <div 
+    className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+    onClick={handleBackgroundClick}
+  >
     <div 
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-      onClick={handleBackgroundClick}
+      className="bg-orange-50 rounded-lg shadow-xl w-full max-w-md mx-4"
+      onClick={(e) => e.stopPropagation()}
     >
-      <div 
-        className="bg-orange-50 rounded-lg shadow-xl w-full max-w-md"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <header className="bg-orange-500 py-2 px-4 flex justify-between items-center rounded-t-lg">
+      <header className="bg-orange-500 py-2 px-4 flex justify-between items-center rounded-t-lg">
           <div className="flex items-center">
             <div className="font-bold text-white mr-4">HPYHN</div>
           </div>
@@ -84,7 +84,7 @@ export default function LoginModal({ isOpen, onClose, onRegisterClick }) {
           </button>
         </header>
         
-        <main className="bg-white py-8 px-4 rounded-b-lg">
+      <main className="bg-white py-6 px-4 sm:py-8 sm:px-6 rounded-b-lg">
           <h1 className="text-2xl font-bold mb-6 text-center">Login</h1>
           
           {message && (
@@ -147,7 +147,7 @@ export default function LoginModal({ isOpen, onClose, onRegisterClick }) {
               </div>
             </div>
             
-            <div className="mt-4 flex space-x-4">
+            <div className="mt-4 flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
               <button
                 onClick={() => handleOAuthLogin('github')}
                 disabled={loading}

@@ -8,6 +8,7 @@ import RegisterModal from '../components/RegisterModal'
 import DOMPurify from 'dompurify';
 import { useRouter, usePathname } from 'next/navigation'
 import FacebookReaction from '../components/FacebookReaction';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 export default function Home({ initialType }) {
   const router = useRouter()
@@ -28,6 +29,24 @@ export default function Home({ initialType }) {
   // 添加分页相关状态
   const [currentPage, setCurrentPage] = useState(1);
   const postsPerPage = 30; // 每页显示30条数据
+  const [expandedTexts, setExpandedTexts] = useState({}); // 记录哪些文章的正文是展开的
+  const [subscription, setSubscription] = useState(null)
+
+  useEffect(() => {
+  const fetchSubscription = async () => {
+    if (!session?.user?.id) return
+    
+    const { data } = await supabase
+      .from('subscriptions')
+      .select('*')
+      .eq('user_id', session.user.id)
+      .single()
+    
+    setSubscription(data)
+  }
+  
+  fetchSubscription()
+}, [session])
 
   useEffect(() => {
     fetchPosts(initialType || (pathname === '/newest' ? 'newest' : 'front_page'))
@@ -78,6 +97,7 @@ export default function Home({ initialType }) {
               points,
               created_at,
               descendants,
+              text,
               user_id,
               content_summary
             )
@@ -93,6 +113,7 @@ export default function Home({ initialType }) {
           .map(item => ({
             ...item.hn_posts,
             source: 'hn',
+            text: item.hn_posts.text,
             comments_count: item.hn_posts.descendants,
             user: { username: item.hn_posts.user_id || 'anonymous' },
             comments: item.hn_posts.comments || []
@@ -114,6 +135,7 @@ export default function Home({ initialType }) {
               created_at,
               descendants,
               user_id,
+              text,
               content_summary
             )
           `)
@@ -129,6 +151,7 @@ export default function Home({ initialType }) {
             ...item.hn_posts,
             source: 'hn',
             comments_count: item.hn_posts.descendants,
+            text: item.hn_posts.text,
             user: { username: item.hn_posts.user_id || 'anonymous' },
             comments: item.hn_posts.comments || []
           }));
@@ -149,6 +172,7 @@ export default function Home({ initialType }) {
               created_at,
               descendants,
               user_id,
+              text,
               content_summary
             )
           `)
@@ -164,6 +188,7 @@ export default function Home({ initialType }) {
             ...item.hn_posts,
             source: 'hn',
             comments_count: item.hn_posts.descendants,
+            text: item.hn_posts.text,
             user: { username: item.hn_posts.user_id || 'anonymous' },
             comments: item.hn_posts.comments || []
           }));
@@ -180,6 +205,7 @@ export default function Home({ initialType }) {
               hn_id,
               title,
               url,
+              text,
               points,
               created_at,
               descendants,
@@ -199,6 +225,7 @@ export default function Home({ initialType }) {
             ...item.hn_posts,
             source: 'hn',
             comments_count: item.hn_posts.descendants,
+            text: item.hn_posts.text,
             user: { username: item.hn_posts.user_id || 'anonymous' },
             comments: item.hn_posts.comments || []
           }));
@@ -278,6 +305,13 @@ export default function Home({ initialType }) {
     }
   }
 
+  const toggleText = (postId) => {
+    setExpandedTexts(prev => ({
+      ...prev,
+      [postId]: !prev[postId]
+    }))
+  }
+
   const toggleComments = async (postId) => {
     const newState = !expandedComments[postId];
     
@@ -316,7 +350,7 @@ export default function Home({ initialType }) {
   const parseSummaryContent = (summary) => {
     if (!summary) return null;
     
-    // 如果是对象格式（包含 articleType, contentSummary, keywords）
+    // 如果是对象格式（包含 type, contentSummary, keywords）
     if (typeof summary === 'object') {
       return summary;
     }
@@ -476,8 +510,7 @@ export default function Home({ initialType }) {
     }
   };
 
-  // ...existing code...
-  // ...existing code...
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-2 bg-orange-50 relative min-h-screen">
       {session && (
@@ -581,6 +614,12 @@ export default function Home({ initialType }) {
       )}
     </div>
   )}
+  {session && (
+  <Link href="/account" className="text-white hover:underline ml-4">
+    {subscription === undefined ? 'Loading...' : 
+     subscription ? 'Manage Subscription' : 'Subscribe'}
+  </Link>
+)}
 </header>
       
       <main className="bg-white">
@@ -626,10 +665,10 @@ export default function Home({ initialType }) {
                         {/* Article type tag displayed after title */}
                         {post.content_summary && (() => {
                           const summaryData = parseSummaryContent(post.content_summary);
-                          if (summaryData && summaryData.articleType && summaryData.articleType !== 'Unable to get article type') {
+                          if (summaryData && summaryData.type && summaryData.type !== 'Unable to get article type') {
                             return (
                               <span className="text-xs bg-blue-100 text-blue-800 px-1 rounded ml-1">
-                                {summaryData.articleType}
+                                {summaryData.type}
                               </span>
                             );
                           }
@@ -644,11 +683,13 @@ export default function Home({ initialType }) {
                       {post.content_summary && (() => {
                         const summaryData = parseSummaryContent(post.content_summary);
                         if (summaryData && summaryData.keywords && summaryData.keywords !== 'Unable to get keywords') {
-                          // Split keywords and limit to maximum 12
-                          const keywords = summaryData.keywords.split(',').slice(0, 12).join(', ');
+                          // 分割关键词并渲染为 badge
+                          const keywordsArr = summaryData.keywords.split(',').slice(0, 12);
                           return (
-                            <div className="text-xs text-gray-600 mt-1">
-                              Keywords: {keywords}
+                            <div className="text-xs text-gray-600 mt-1 flex flex-wrap gap-1">
+                              {keywordsArr.map((kw, idx) => (
+                                <span key={idx} className="bg-gray-200 text-gray-800 px-2 py-0.5 rounded">{kw.trim()}</span>
+                              ))}
                             </div>
                           );
                         }
@@ -665,22 +706,39 @@ export default function Home({ initialType }) {
                               <span className="ml-1">({expandedComments[post.hn_id] ? 'collapse' : 'show top3 comments'})</span>
                             )}
                           </button>
+                          {post.text && (
+                              <button
+                                onClick={() => toggleText(post.hn_id)}
+                                className={`hover:underline ml-2 ${post.text ? 'text-green-600 font-medium' : 'text-gray-500'
+                                  }`}
+                              >
+                                {expandedTexts[post.hn_id] ? 'hide post text' : 'show post text'}
+                              </button>
+                            )}
                           {/* Summary expand/collapse button */}
                           {post.content_summary && (
                             <button 
                               onClick={() => toggleSummary(post.hn_id)}
-                              className="hover:underline ml-2"
+                              className={`hover:underline ml-2 ${
+                                post.content_summary ? 'text-blue-600 font-medium' : 'text-gray-500'
+                              }`}
                             >
-                              ({expandedSummaries[post.hn_id] ? 'hide summary' : 'show summary'})
+                              {expandedSummaries[post.hn_id] ? 'hide summary' : 'show summary'}
                             </button>
                           )}
                         </div>
-                        {session && (
+                        {(
                           <div className="ml-auto">
                             <FacebookReaction 
                               postId={post.hn_id}
-                              currentReaction={userInterests[post.hn_id]}
-                              onSelect={(postId, reaction) => handleInterest(postId, reaction)}
+                              currentReaction={session ? userInterests[post.hn_id] : null}
+                              onSelect={(postId, reaction) => {
+                                if (!session) {
+                                  setIsLoginOpen(true);
+                                } else {
+                                  handleInterest(postId, reaction);
+                                }
+                              }}
                             />
                           </div>
                         )}
@@ -698,8 +756,8 @@ export default function Home({ initialType }) {
                           if (!summaryData) return 'No summary content available';
                           
                           // Only display summary content, not keywords
-                          if (summaryData.contentSummary && summaryData.contentSummary !== 'Unable to generate content summary') {
-                            return <div>{summaryData.contentSummary}</div>;
+                          if (summaryData.content && summaryData.content !== 'Unable to generate content summary') {
+                            return <div>{summaryData.content}</div>;
                           }
                           
                           return 'No summary content available';
@@ -711,6 +769,7 @@ export default function Home({ initialType }) {
                   {/* Comments show/hide logic */}
                   {post.source === 'hn' && expandedComments[post.hn_id] && (
                     <div className="mt-2 ml-6 space-y-2 border-l-2 pl-2 border-orange-200">
+                      <div className="text-xs font-medium text-orange-800 mb-1">Top 3 Comments:</div>
                       {/* Display live comments or preloaded comments */}
                       {(liveComments[post.hn_id] || post.comments || []).map(comment => (
                         <div key={comment.id} className="text-xs text-gray-600">
@@ -735,6 +794,17 @@ export default function Home({ initialType }) {
                       )}
                     </div>
                   )}
+
+                  {/* Post text show/hide logic */}
+                  {post.source === 'hn' && expandedTexts[post.hn_id] && post.text && (
+                    <div className="mt-2 ml-6 p-3 bg-green-50 rounded border border-green-200">
+                      <div className="text-xs font-medium text-green-800 mb-1">Post Text:</div>
+                      <div 
+                        className="text-xs text-gray-700 whitespace-pre-wrap break-words prose prose-sm max-w-none"
+                        dangerouslySetInnerHTML={{ __html: formatCommentText(post.text) }}
+                      />
+                    </div>
+                  )}
                 </li>
               ))}
             </ol>
@@ -742,7 +812,10 @@ export default function Home({ initialType }) {
             {/* Pagination controls */}
             <div className="flex justify-center items-center py-4 space-x-2">
               <button
-                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                onClick={() => {
+                  setCurrentPage(prev => Math.max(prev - 1, 1));
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
                 disabled={currentPage === 1}
                 className={`px-3 py-1 rounded ${
                   currentPage === 1 
@@ -758,7 +831,10 @@ export default function Home({ initialType }) {
               </span>
               
               <button
-                onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(posts.length / postsPerPage)))}
+                onClick={() => {
+                  setCurrentPage(prev => Math.min(prev + 1, Math.ceil(posts.length / postsPerPage)));
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
                 disabled={currentPage === Math.ceil(posts.length / postsPerPage)}
                 className={`px-3 py-1 rounded ${
                   currentPage === Math.ceil(posts.length / postsPerPage)

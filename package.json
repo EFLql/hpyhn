@@ -22,9 +22,7 @@
     "dompurify": "^3.0.5",
     "youtube-captions-scraper": "^2.0.3",
     "@mozilla/readability": "^0.5.0",
-    "jsdom": "^22.1.0",
-    "https-proxy-agent": "^7.0.0",
-    "@vercel/python": "^1.0.0"
+    "jsdom": "^22.1.0"
   },
   "devDependencies": {
     "@vercel/node": "^2.3.0",

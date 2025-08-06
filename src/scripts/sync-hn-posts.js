@@ -112,7 +112,7 @@ export async function syncHnPosts(type = 'front_page', limit = 200) {
       .map(story => ({
         hn_id: story.story_id,
         title: story.title,
-        url: story.url || `https://news.ycombinator.com/item?id=${story.id}`,
+        url: story.url || `https://news.ycombinator.com/item?id=${story.story_id}`,
         points: story.points || 0,
         user_id: story.author || 'anonymous',
         descendants: story.num_comments || 0,

@@ -57,11 +57,11 @@ export default function RegisterModal({ isOpen, onClose, onLoginClick }) {
 
   return (
     <div 
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
       onClick={handleBackgroundClick}
     >
       <div 
-        className="bg-orange-50 rounded-lg shadow-xl w-full max-w-md"
+        className="bg-orange-50 rounded-lg shadow-xl w-full max-w-md mx-4"
         onClick={(e) => e.stopPropagation()}
       >
         <header className="bg-orange-500 py-2 px-4 flex justify-between items-center rounded-t-lg">
@@ -76,7 +76,7 @@ export default function RegisterModal({ isOpen, onClose, onLoginClick }) {
           </button>
         </header>
         
-        <main className="bg-white py-8 px-4 rounded-b-lg">
+        <main className="bg-white py-6 px-4 sm:py-8 sm:px-6 rounded-b-lg">
           <h1 className="text-2xl font-bold mb-6 text-center">Sign Up</h1>
           
           {message && (
