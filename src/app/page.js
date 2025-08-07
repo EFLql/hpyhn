@@ -9,6 +9,8 @@ import DOMPurify from 'dompurify';
 import { useRouter, usePathname } from 'next/navigation'
 import FacebookReaction from '../components/FacebookReaction';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import Script from 'next/script'
+import GumroadSubscribeButton from '../components/GumroadSubscribeButton'
 
 export default function Home({ initialType }) {
   const router = useRouter()
@@ -510,7 +512,6 @@ export default function Home({ initialType }) {
     }
   };
 
-
   return (
     <div className="max-w-4xl mx-auto px-4 py-2 bg-orange-50 relative min-h-screen">
       {session && (
@@ -615,10 +616,7 @@ export default function Home({ initialType }) {
     </div>
   )}
   {session && (
-  <Link href="/account" className="text-white hover:underline ml-4">
-    {subscription === undefined ? 'Loading...' : 
-     subscription ? 'Manage Subscription' : 'Subscribe'}
-  </Link>
+  <GumroadSubscribeButton session={session} subscription={subscription} />
 )}
 </header>
       
