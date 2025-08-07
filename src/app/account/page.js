@@ -101,7 +101,10 @@ export default function AccountPage() {
                   </div>
                 </div>
                 <div>
-                  <GumroadSubscribeButton userId={session?.user?.id} />
+                  <GumroadSubscribeButton 
+                    session={session} 
+                    subscription={subscription} 
+                  />
                 </div>
               </div>
             </div>
@@ -112,7 +115,10 @@ export default function AccountPage() {
                 Subscribe to unlock premium features and support our service.
               </p>
               <div className="mt-4">
-                <GumroadSubscribeButton userId={session?.user?.id} />
+                <GumroadSubscribeButton 
+                  session={session} 
+                  subscription={subscription} 
+                />
               </div>
             </div>
           )}

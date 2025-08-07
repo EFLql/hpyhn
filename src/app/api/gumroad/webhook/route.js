@@ -22,7 +22,7 @@ export async function POST(request) {
 
     // 验证 webhook 签名（推荐）
     const signature = request.headers.get('X-Gumroad-Signature')
-    if (!verifySignature(payload, signature)) {
+    if (signature && !verifySignature(payload, signature)) {
       return NextResponse.json(
         { error: 'Invalid signature' },
         { status: 401 }
@@ -39,15 +39,25 @@ export async function POST(request) {
     }
 
     // 处理订阅
-    switch (payload.event_name) {
-      case 'subscription_created':
-      case 'subscription_renewed':
-        await handleActiveSubscription(payload, verification.sale)
+    switch (payload.resource_name) {
+      case 'sale':
+        if (payload.recurrence === 'monthly') {
+          await handleActiveSubscription(payload, verification.sale)
+        }
         break
         
-      case 'subscription_cancelled':
-      case 'subscription_failed':
-        await handleInactiveSubscription(payload)
+      case 'subscription':
+        switch (payload.event_name) {
+          case 'subscription_created':
+          case 'subscription_renewed':
+            await handleActiveSubscription(payload, verification.sale)
+            break
+            
+          case 'subscription_cancelled':
+          case 'subscription_failed':
+            await handleInactiveSubscription(payload)
+            break
+        }
         break
     }
 
@@ -73,23 +83,54 @@ async function handleActiveSubscription(payload, verifiedSale) {
   try {
     if (typeof payload.custom_fields === 'string') {
       customFields = JSON.parse(payload.custom_fields)
-    } else {
+    } else if (payload.custom_fields) {
       customFields = payload.custom_fields
     }
   } catch (e) {
     console.error('Error parsing custom fields:', e)
   }
 
+  // 从多个可能的位置提取 user_id
+  let userId = null;
+  
+  // 1. 从自定义字段中提取
+  if (customFields.user_id) {
+    userId = customFields.user_id;
+  }
+  
+  // 2. 从 payload 直接字段中提取
+  if (!userId && payload.user_id) {
+    userId = payload.user_id;
+  }
+  
+  // 3. 从 URL 参数中提取
+  if (!userId && payload['url_params[user_id]']) {
+    userId = payload['url_params[user_id]'];
+  }
+  
+  // 4. 从 variants 中提取（如果 Gumroad 以这种方式发送）
+  if (!userId && payload['variants[user_id]']) {
+    userId = payload['variants[user_id]'];
+  }
+
+  // 确保必要的字段存在
+  if (!userId) {
+    console.error('No user ID found in payload', payload)
+    return
+  }
+
+  console.log('Processing subscription for user:', userId)
+
   const { error } = await supabase
     .from('subscriptions')
     .upsert({
-      user_id: customFields.user_id || payload.user_id,
-      gumroad_id: payload.subscription_id,
+      user_id: userId,
+      gumroad_id: payload.subscription_id || payload.gumroad_id,
       product_id: payload.product_id,
-      status: verifiedSale.refunded ? 'refunded' : 'active',
+      status: verifiedSale.refunded === 'true' ? 'refunded' : 'active',
       next_bill_date: payload.next_bill_date,
-      last_verified: new Date().toISOString(),
       current_period_end: payload.next_bill_date,
+      last_verified: new Date().toISOString(),
       updated_at: new Date().toISOString()
     }, {
       onConflict: 'user_id'
@@ -101,13 +142,21 @@ async function handleActiveSubscription(payload, verifiedSale) {
 }
 
 async function handleInactiveSubscription(payload) {
+  // 确保 subscription_id 存在
+  if (!payload.subscription_id && !payload.gumroad_id) {
+    console.error('No subscription ID found in payload', payload)
+    return
+  }
+
+  const subscriptionId = payload.subscription_id || payload.gumroad_id;
+
   const { error } = await supabase
     .from('subscriptions')
     .update({ 
       status: payload.event_name.split('_')[1],
       updated_at: new Date().toISOString()
     })
-    .eq('gumroad_id', payload.subscription_id)
+    .eq('gumroad_id', subscriptionId)
 
   if (error) {
     console.error('Error updating subscription:', error)
@@ -122,26 +171,32 @@ function verifySignature(payload, signature) {
     return false
   }
 
-  // 2. 创建 HMAC SHA256 哈希
+  // 2. 检查签名是否存在
+  if (!signature) {
+    console.error('No signature provided')
+    return false
+  }
+
+  // 3. 创建 HMAC SHA256 哈希
   const hmac = crypto.createHmac('sha256', secret)
   
-  // 3. Gumroad 签名的是原始表单数据的字符串表示
+  // 4. Gumroad 签名的是原始表单数据的字符串表示
   // 我们需要将对象转换为查询字符串格式进行签名验证
   const payloadString = Object.keys(payload)
     .sort()
-    .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(payload[key])}`)
+    .map(key => `${encodeURIComponent(key)}=${encodeURIComponent(payload[key] || '')}`)
     .join('&')
   
   hmac.update(payloadString)
   
-  // 4. 获取十六进制格式的摘要
+  // 5. 获取十六进制格式的摘要
   const calculatedSignature = hmac.digest('hex')
   
-  // 5. 与收到的签名进行比较
+  // 6. 与收到的签名进行比较
   try {
     return crypto.timingSafeEqual(
-      Buffer.from(calculatedSignature),
-      Buffer.from(signature)
+      Buffer.from(calculatedSignature, 'hex'),
+      Buffer.from(signature, 'hex')
     )
   } catch (e) {
     console.error('Signature comparison error:', e)

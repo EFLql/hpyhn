@@ -1,13 +1,23 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 
-export default function GumroadSubscribeButton({ session, subscription, compact }) {
+export default function GumroadSubscribeButton({ session, subscription, compact = false }) {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState(null)
 
   const handleSubscribe = () => {
     setLoading(true)
     try {
-      window.open(`https://gumroad.com/l/${process.env.NEXT_PUBLIC_GUMROAD_PRODUCT_ID}`, '_blank') // 替换为你的产品链接
+      // 构建包含用户ID的URL
+      const userId = session?.user?.id
+      if (!userId) {
+        setMessage('请先登录再订阅')
+        setLoading(false)
+        return
+      }
+      
+      // 将用户ID作为自定义参数传递给Gumroad
+      const gumroadUrl = `https://gumroad.com/l/${process.env.NEXT_PUBLIC_GUMROAD_PRODUCT_ID}?user_id=${userId}`
+      window.open(gumroadUrl, '_blank')
     } catch (error) {
       setMessage('无法打开订阅页面')
       console.error(error)
@@ -16,6 +26,7 @@ export default function GumroadSubscribeButton({ session, subscription, compact 
     }
   }
 
+  // 如果已经有订阅，显示订阅状态
   if (subscription) {
     return compact ? (
       <div className="px-2 py-1 bg-green-500 text-white text-xs rounded">
@@ -28,11 +39,12 @@ export default function GumroadSubscribeButton({ session, subscription, compact 
     )
   }
 
+  // 显示订阅按钮
   return compact ? (
     <button
       onClick={handleSubscribe}
       disabled={loading}
-      className="px-2 py-1 bg-orange-500 hover:bg-orange-600 text-white text-xs rounded"
+      className="px-2 py-1 bg-orange-500 hover:bg-orange-600 text-white text-xs rounded disabled:opacity-50"
     >
       {loading ? '...' : 'Subscribe'}
     </button>
@@ -41,7 +53,7 @@ export default function GumroadSubscribeButton({ session, subscription, compact 
       <button
         onClick={handleSubscribe}
         disabled={loading}
-        className="px-3 py-1 bg-orange-500 hover:bg-orange-600 text-white text-sm rounded"
+        className="px-3 py-1 bg-orange-500 hover:bg-orange-600 text-white text-sm rounded disabled:opacity-50"
       >
         {loading ? 'Loading...' : 'Subscribe'}
       </button>
