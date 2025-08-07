@@ -75,7 +75,7 @@ export default function Home({ initialType }) {
     if (session?.user?.id) {
       fetchUserInterests();
     }
-  }, [session]);
+  }, [session])
 
   async function checkSession() {
     const { data } = await supabase.auth.getSession()
@@ -279,7 +279,8 @@ export default function Home({ initialType }) {
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut()
-      setIsUserMenuOpen(false)
+      setIsUserMenuOpen(false) // 确保关闭菜单
+      router.push('/') // 明确跳转回首页
     } catch (error) {
       console.error('Error logging out:', error)
     }
@@ -592,10 +593,10 @@ export default function Home({ initialType }) {
     </div>
   )}
   {session && (
-    <div className="relative">
+    <div className="relative flex items-center">
       <button 
         onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-        className="text-white hover:text-gray-200 text-sm flex items-center"
+        className="text-white hover:text-gray-200 text-sm flex items-center ml-2 relative z-30"
       >
         {session.user.email}
         <svg className="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -604,20 +605,32 @@ export default function Home({ initialType }) {
       </button>
       
       {isUserMenuOpen && (
-        <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
-          <button
-            onClick={handleLogout}
-            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-          >
-            Logout
-          </button>
-        </div>
+        <>
+          {/* 点击空白处关闭菜单的遮罩层 */}
+          <div 
+            className="fixed inset-0 z-20 bg-black bg-opacity-10"
+            onClick={() => setIsUserMenuOpen(false)}
+          />
+          {/* 菜单内容 */}
+          <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-md shadow-lg py-1 z-30">
+            <Link 
+              href="/account" 
+              className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+              onClick={() => setIsUserMenuOpen(false)}
+            >
+              Account Settings
+            </Link>
+            <button
+              onClick={handleLogout}
+              className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+            >
+              Logout
+            </button>
+          </div>
+        </>
       )}
     </div>
   )}
-  {session && (
-  <GumroadSubscribeButton session={session} subscription={subscription} />
-)}
 </header>
       
       <main className="bg-white">

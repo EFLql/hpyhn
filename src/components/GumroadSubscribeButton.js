@@ -1,29 +1,15 @@
 import { useState, useEffect } from 'react'
-import { supabase } from '../utils/supabase/client'
 
-export default function GumroadSubscribeButton({ session, subscription }) {
+export default function GumroadSubscribeButton({ session, subscription, compact }) {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState(null)
 
-  const handleSubscribe = async () => {
+  const handleSubscribe = () => {
     setLoading(true)
     try {
-      // Create a checkout session
-      const response = await fetch('/api/gumroad/create-subscription', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: session.user.id,
-          email: session.user.email
-        })
-      })
-      
-      const { url } = await response.json()
-      window.location.href = url
+      window.open(`https://gumroad.com/l/${process.env.NEXT_PUBLIC_GUMROAD_PRODUCT_ID}`, '_blank') // 替换为你的产品链接
     } catch (error) {
-      setMessage('Failed to initiate subscription')
+      setMessage('无法打开订阅页面')
       console.error(error)
     } finally {
       setLoading(false)
@@ -31,14 +17,26 @@ export default function GumroadSubscribeButton({ session, subscription }) {
   }
 
   if (subscription) {
-    return (
+    return compact ? (
+      <div className="px-2 py-1 bg-green-500 text-white text-xs rounded">
+        Subscribed
+      </div>
+    ) : (
       <div className="ml-4 px-3 py-1 bg-green-500 text-white text-sm rounded">
         Subscribed
       </div>
     )
   }
 
-  return (
+  return compact ? (
+    <button
+      onClick={handleSubscribe}
+      disabled={loading}
+      className="px-2 py-1 bg-orange-500 hover:bg-orange-600 text-white text-xs rounded"
+    >
+      {loading ? '...' : 'Subscribe'}
+    </button>
+  ) : (
     <div className="ml-4">
       <button
         onClick={handleSubscribe}
