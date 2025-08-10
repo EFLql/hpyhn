@@ -121,18 +121,38 @@ async function handleActiveSubscription(payload, verifiedSale) {
 
   console.log('Processing subscription for user:', userId)
 
+  // 计算当前周期结束日期（对于按月订阅）
+  let currentPeriodEnd = null;
+  if (payload.recurrence === 'monthly' && payload.sale_timestamp) {
+    const saleDate = new Date(payload.sale_timestamp);
+    // 对于按月订阅，周期结束日期是下个月的同一天
+    currentPeriodEnd = new Date(saleDate.setMonth(saleDate.getMonth() + 1));
+  }
+
+  const subscriptionData = {
+    user_id: userId,
+    gumroad_id: payload.subscription_id || payload.gumroad_id,
+    product_id: payload.product_id,
+    product_name: payload.product_name,
+    status: payload.refunded === 'true' ? 'refunded' : 'active',
+    current_period_end: currentPeriodEnd ? currentPeriodEnd.toISOString() : null,
+    last_verified: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    email: payload.email,
+    price: payload.price,
+    currency: payload.currency,
+    recurrence: payload.recurrence,
+    purchaser_id: payload.purchaser_id,
+    order_number: payload.order_number,
+    sale_id: payload.sale_id,
+    ip_country: payload.ip_country,
+    variants: payload.variants ? JSON.stringify(payload.variants) : null,
+    custom_fields: payload.custom_fields ? JSON.stringify(customFields) : null
+  };
+
   const { error } = await supabase
     .from('subscriptions')
-    .upsert({
-      user_id: userId,
-      gumroad_id: payload.subscription_id || payload.gumroad_id,
-      product_id: payload.product_id,
-      status: verifiedSale.refunded === 'true' ? 'refunded' : 'active',
-      next_bill_date: payload.next_bill_date,
-      current_period_end: payload.next_bill_date,
-      last_verified: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }, {
+    .upsert(subscriptionData, {
       onConflict: 'user_id'
     })
 

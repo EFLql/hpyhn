@@ -8,9 +8,6 @@ import RegisterModal from '../components/RegisterModal'
 import DOMPurify from 'dompurify';
 import { useRouter, usePathname } from 'next/navigation'
 import FacebookReaction from '../components/FacebookReaction';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import Script from 'next/script'
-import GumroadSubscribeButton from '../components/GumroadSubscribeButton'
 
 export default function Home({ initialType }) {
   const router = useRouter()
@@ -83,160 +80,168 @@ export default function Home({ initialType }) {
   }
 
     async function fetchPosts(type = 'front_page') {
-    setLoading(true)
-    try {
-      if (type === 'front_page') {
-        // 使用 JOIN 一次性获取 hn_front_page_posts 和 hn_posts 数据
-        const { data, error } = await supabase
-          .from('hn_front_page_posts')
-          .select(`
+  setLoading(true)
+  try {
+    if (type === 'front_page') {
+      // 使用 JOIN 一次性获取 hn_front_page_posts 和 hn_posts 数据
+      const { data, error } = await supabase
+        .from('hn_front_page_posts')
+        .select(`
+          id,
+          created_at,
+          hn_posts (
+            hn_id,
+            title,
+            url,
+            points,
             created_at,
-            hn_posts (
-              id,
-              hn_id,
-              title,
-              url,
-              points,
-              created_at,
-              descendants,
-              text,
-              user_id,
-              content_summary
-            )
-          `)
-          .order('created_at', { ascending: false })
-          .limit(100);
-  
-        if (error) throw error;
-  
-        // 过滤掉 hn_posts 为 null 的记录并格式化数据
-        const formattedHnPosts = data
-          .filter(item => item.hn_posts !== null)
-          .map(item => ({
-            ...item.hn_posts,
-            source: 'hn',
-            text: item.hn_posts.text,
-            comments_count: item.hn_posts.descendants,
-            user: { username: item.hn_posts.user_id || 'anonymous' },
-            comments: item.hn_posts.comments || []
-          }));
-  
-        setPosts(formattedHnPosts)
-      } else if (type === 'newest') {
-        // 使用 JOIN 一次性获取 hn_news_posts 和 hn_posts 数据
-        const { data, error } = await supabase
-          .from('hn_news_posts')
-          .select(`
+            descendants,
+            text,
+            user_id,
+            content_summary
+          )
+        `)
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (error) throw error;
+
+      // 过滤掉 hn_posts 为 null 的记录并格式化数据，然后按 ID 排序
+      const formattedHnPosts = data
+        .filter(item => item.hn_posts !== null)
+        .map(item => ({
+          ...item.hn_posts,
+          source: 'hn',
+          id: item.id,
+          text: item.hn_posts.text,
+          comments_count: item.hn_posts.descendants,
+          user: { username: item.hn_posts.user_id || 'anonymous' },
+          comments: item.hn_posts.comments || []
+        }))
+        .sort((a, b) => b.points - a.points); // 按 points从大到小排序
+
+      setPosts(formattedHnPosts)
+    } else if (type === 'newest') {
+      // 使用 JOIN 一次性获取 hn_news_posts 和 hn_posts 数据
+      const { data, error } = await supabase
+        .from('hn_news_posts')
+        .select(`
+          id,
+          created_at,
+          hn_posts (
+            hn_id,
+            title,
+            url,
+            points,
             created_at,
-            hn_posts (
-              id,
-              hn_id,
-              title,
-              url,
-              points,
-              created_at,
-              descendants,
-              user_id,
-              text,
-              content_summary
-            )
-          `)
-          .order('created_at', { ascending: false })
-          .limit(100);
-  
-        if (error) throw error;
-  
-        // 过滤掉 hn_posts 为 null 的记录并格式化数据
-        const formattedHnPosts = data
-          .filter(item => item.hn_posts !== null)
-          .map(item => ({
-            ...item.hn_posts,
-            source: 'hn',
-            comments_count: item.hn_posts.descendants,
-            text: item.hn_posts.text,
-            user: { username: item.hn_posts.user_id || 'anonymous' },
-            comments: item.hn_posts.comments || []
-          }));
-  
-        setPosts(formattedHnPosts)
-      } else if (type === 'ask') {
-        // 使用 JOIN 一次性获取 hn_ask_posts 和 hn_posts 数据
-        const { data, error } = await supabase
-          .from('hn_ask_posts')
-          .select(`
+            descendants,
+            user_id,
+            text,
+            content_summary
+          )
+        `)
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (error) throw error;
+
+      // 过滤掉 hn_posts 为 null 的记录并格式化数据，然后按 ID 排序
+      const formattedHnPosts = data
+        .filter(item => item.hn_posts !== null)
+        .map(item => ({
+          ...item.hn_posts,
+          id: item.id,
+          source: 'hn',
+          comments_count: item.hn_posts.descendants,
+          text: item.hn_posts.text,
+          user: { username: item.hn_posts.user_id || 'anonymous' },
+          comments: item.hn_posts.comments || []
+        }))
+        .sort((a, b) => b.points - a.points); // 按 points从大到小排序
+
+      setPosts(formattedHnPosts)
+    } else if (type === 'ask') {
+      // 使用 JOIN 一次性获取 hn_ask_posts 和 hn_posts 数据
+      const { data, error } = await supabase
+        .from('hn_ask_posts')
+        .select(`
+          id,
+          created_at,
+          hn_posts (
+            hn_id,
+            title,
+            url,
+            points,
             created_at,
-            hn_posts (
-              id,
-              hn_id,
-              title,
-              url,
-              points,
-              created_at,
-              descendants,
-              user_id,
-              text,
-              content_summary
-            )
-          `)
-          .order('created_at', { ascending: false })
-          .limit(100);
-  
-        if (error) throw error;
-  
-        // 过滤掉 hn_posts 为 null 的记录并格式化数据
-        const formattedHnPosts = data
-          .filter(item => item.hn_posts !== null)
-          .map(item => ({
-            ...item.hn_posts,
-            source: 'hn',
-            comments_count: item.hn_posts.descendants,
-            text: item.hn_posts.text,
-            user: { username: item.hn_posts.user_id || 'anonymous' },
-            comments: item.hn_posts.comments || []
-          }));
-  
-        setPosts(formattedHnPosts)
-      } else if (type === 'show') {
-        // 使用 JOIN 一次性获取 hn_show_posts 和 hn_posts 数据
-        const { data, error } = await supabase
-          .from('hn_show_posts')
-          .select(`
+            descendants,
+            user_id,
+            text,
+            content_summary
+          )
+        `)
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (error) throw error;
+
+      // 过滤掉 hn_posts 为 null 的记录并格式化数据，然后按 ID 排序
+      const formattedHnPosts = data
+        .filter(item => item.hn_posts !== null)
+        .map(item => ({
+          ...item.hn_posts,
+          source: 'hn',
+          id: item.id,
+          comments_count: item.hn_posts.descendants,
+          text: item.hn_posts.text,
+          user: { username: item.hn_posts.user_id || 'anonymous' },
+          comments: item.hn_posts.comments || []
+        }))
+        .sort((a, b) => b.points - a.points); // 按 points从大到小排序
+
+      setPosts(formattedHnPosts)
+    } else if (type === 'show') {
+      // 使用 JOIN 一次性获取 hn_show_posts 和 hn_posts 数据
+      const { data, error } = await supabase
+        .from('hn_show_posts')
+        .select(`
+          id,
+          created_at,
+          hn_posts (
+            hn_id,
+            title,
+            url,
+            text,
+            points,
             created_at,
-            hn_posts (
-              id,
-              hn_id,
-              title,
-              url,
-              text,
-              points,
-              created_at,
-              descendants,
-              user_id,
-              content_summary
-            )
-          `)
-          .order('created_at', { ascending: false })
-          .limit(100);
-  
-        if (error) throw error;
-  
-        // 过滤掉 hn_posts 为 null 的记录并格式化数据
-        const formattedHnPosts = data
-          .filter(item => item.hn_posts !== null)
-          .map(item => ({
-            ...item.hn_posts,
-            source: 'hn',
-            comments_count: item.hn_posts.descendants,
-            text: item.hn_posts.text,
-            user: { username: item.hn_posts.user_id || 'anonymous' },
-            comments: item.hn_posts.comments || []
-          }));
-  
-        setPosts(formattedHnPosts)
-      }
-    } catch (error) {
-      console.error('Error fetching posts:', error)
-      setPosts([])
+            descendants,
+            user_id,
+            content_summary
+          )
+        `)
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (error) throw error;
+
+      // 过滤掉 hn_posts 为 null 的记录并格式化数据，然后按 ID 排序
+      const formattedHnPosts = data
+        .filter(item => item.hn_posts !== null)
+        .map(item => ({
+          ...item.hn_posts,
+          id: item.id,
+          source: 'hn',
+          comments_count: item.hn_posts.descendants,
+          text: item.hn_posts.text,
+          user: { username: item.hn_posts.user_id || 'anonymous' },
+          comments: item.hn_posts.comments || []
+        }))
+        .sort((a, b) => b.points - a.points); // 按 points从大到小排序
+
+      setPosts(formattedHnPosts)
+    }
+  } catch (error) {
+    console.error('Error fetching posts:', error)
+    setPosts([])
   } finally {
     setLoading(false)
   }
@@ -666,13 +671,14 @@ export default function Home({ initialType }) {
                     <div className="flex-1">
                       <div className="flex flex-wrap items-baseline">
                         <a 
-                          href={post.url} 
-                          target="_blank" 
+                          href={post.url}
+                          target="_blank"
                           rel="noopener noreferrer"
                           className="text-black hover:underline mr-1"
                         >
                           {post.title}
                         </a>
+
                         {/* Article type tag displayed after title */}
                         {post.content_summary && (() => {
                           const summaryData = parseSummaryContent(post.content_summary);
@@ -689,7 +695,19 @@ export default function Home({ initialType }) {
                             ({new URL(post.url).hostname.replace('www.', '')})
                           </span>
                         )}
+                        {/* Hacker News original post link positioned at top-right of title */}
+                        {post.source === 'hn' && post.hn_id && (
+                          <a 
+                            href={`https://news.ycombinator.com/item?id=${post.hn_id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:underline ml-2 text-orange-600 font-medium text-xs"
+                          >
+                            view on HN
+                          </a>
+                        )}
                       </div>
+                      
                       {/* Modify keyword display section, limit to maximum 12 keywords */}
                       {post.content_summary && (() => {
                         const summaryData = parseSummaryContent(post.content_summary);
@@ -718,21 +736,18 @@ export default function Home({ initialType }) {
                             )}
                           </button>
                           {post.text && (
-                              <button
-                                onClick={() => toggleText(post.hn_id)}
-                                className={`hover:underline ml-2 ${post.text ? 'text-green-600 font-medium' : 'text-gray-500'
-                                  }`}
-                              >
-                                {expandedTexts[post.hn_id] ? 'hide post text' : 'show post text'}
-                              </button>
-                            )}
+                            <button
+                              onClick={() => toggleText(post.hn_id)}
+                              className={`hover:underline ml-2 ${post.text ? 'text-green-600 font-medium' : 'text-gray-500'}`}
+                            >
+                              {expandedTexts[post.hn_id] ? 'hide post text' : 'show post text'}
+                            </button>
+                          )}
                           {/* Summary expand/collapse button */}
                           {post.content_summary && (
                             <button 
                               onClick={() => toggleSummary(post.hn_id)}
-                              className={`hover:underline ml-2 ${
-                                post.content_summary ? 'text-blue-600 font-medium' : 'text-gray-500'
-                              }`}
+                              className={`hover:underline ml-2 ${post.content_summary ? 'text-blue-600 font-medium' : 'text-gray-500'}`}
                             >
                               {expandedSummaries[post.hn_id] ? 'hide summary' : 'show summary'}
                             </button>

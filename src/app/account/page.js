@@ -126,11 +126,17 @@ export default function AccountPage() {
           <div className="mt-6">
             <h3 className="font-medium text-gray-900 mb-2">Subscription Benefits</h3>
             <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
-              <li>Access to premium content</li>
-              <li>Ad-free experience</li>
+              <li>AI-powered interest model predicts your interest level for each post</li>
+              <li>Automatically filters posts you might be interested in based on your preferences</li>
               <li>Early access to new features</li>
-              <li>Priority customer support</li>
             </ul>
+          </div>
+          
+          <div className="mt-4 p-3 bg-blue-50 rounded-md">
+            <p className="text-sm text-blue-800">
+              After successful subscription, please refresh the page to check your subscription status. 
+              There might be a delay due to network conditions, please don't worry.
+            </p>
           </div>
         </div>
 

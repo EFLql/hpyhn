@@ -10,7 +10,7 @@ export default function GumroadSubscribeButton({ session, subscription, compact 
       // 构建包含用户ID的URL
       const userId = session?.user?.id
       if (!userId) {
-        setMessage('请先登录再订阅')
+        setMessage('Please login to subscribe')
         setLoading(false)
         return
       }
@@ -19,7 +19,7 @@ export default function GumroadSubscribeButton({ session, subscription, compact 
       const gumroadUrl = `https://gumroad.com/l/${process.env.NEXT_PUBLIC_GUMROAD_PRODUCT_ID}?user_id=${userId}`
       window.open(gumroadUrl, '_blank')
     } catch (error) {
-      setMessage('无法打开订阅页面')
+      setMessage('cannot open Gumroad')
       console.error(error)
     } finally {
       setLoading(false)
