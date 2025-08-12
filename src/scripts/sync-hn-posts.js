@@ -1,4 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
+import { SignatureV4 } from '@aws-sdk/signature-v4';
+import { HttpRequest } from '@aws-sdk/protocol-http';
+import { Sha256 } from '@aws-crypto/sha256-js';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -90,6 +93,62 @@ async function fetchComments(postId) {
   } catch (error) {
     console.error(`获取文章 ${postId} 的评论失败:`, error)
   }
+}
+
+// 调用 AWS Lambda 接口 - 使用 IAM 认证
+async function invokeLambda(payload) {
+  const region = process.env.AWS_REGION;
+  const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
+
+  // 你的 API Gateway endpoint
+  const endpoint = 'https://b9zo4r44jc.execute-api.us-east-1.amazonaws.com/summary_feature_gen';
+
+  // 解析 hostname 和 path
+  const url = new URL(endpoint);
+  const hostname = url.hostname;
+  const path = url.pathname + url.search;
+
+  const body = JSON.stringify(payload);
+
+  const request = new HttpRequest({
+    method: 'POST',
+    protocol: 'https:',
+    path,
+    hostname,
+    headers: {
+      'Content-Type': 'application/json',
+      'Host': hostname
+    },
+    body
+  });
+
+  const signer = new SignatureV4({
+    service: 'execute-api',
+    region,
+    credentials: {
+      accessKeyId,
+      secretAccessKey
+    },
+    sha256: Sha256
+  });
+
+  const signedRequest = await signer.sign(request);
+
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: signedRequest.headers,
+    body
+  });
+
+  if (!res.ok) {
+    console.error('API Gateway 调用失败:', res.status, res.statusText);
+    throw new Error(`API Gateway 调用失败: ${res.status} ${res.statusText}`);
+  }
+  const text = await res.text();
+  console.log('API Gateway 调用成功:', text);
+
+  return res;
 }
 
 // 同步到 Supabase - 修改为批量写入
@@ -236,6 +295,17 @@ export async function syncHnPosts(type = 'front_page', limit = 200) {
 
     const savedPosts = postsToInsert.length;
     console.log(`Hacker News ${type} 数据同步完成，共保存 ${savedPosts} 篇文章`)
+    
+    // 调用 AWS Lambda 接口
+    if (savedPosts > 0) {
+      const payload = {
+        type: type,
+        count: savedPosts,
+        timestamp: new Date().toISOString()
+      };
+      
+      await invokeLambda(payload);
+    }
     
     // 返回是否还有更多文章需要处理
     return { 
