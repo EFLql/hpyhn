@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '../../utils/supabase/client'
 import { useRouter } from 'next/navigation'
 import GumroadSubscribeButton from '../../components/GumroadSubscribeButton'
 import Link from 'next/link'
@@ -14,33 +13,36 @@ export default function AccountPage() {
 
   useEffect(() => {
     const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
+      // 这里可能需要通过后端接口获取session信息
+      // 但为了简化，我们保持原来的逻辑
+      const response = await fetch('/api/auth/session')
+      const data = await response.json()
+      
+      if (!data.session) {
         router.push('/')
         return
       }
-      setSession(session)
-      fetchSubscription(session.user.id)
+      setSession(data.session)
+      fetchSubscription()
     }
 
     checkSession()
   }, [router])
 
-  const fetchSubscription = async (userId) => {
+  const fetchSubscription = async () => {
     try {
-      const { data, error } = await supabase
-        .from('subscriptions')
-        .select('*')
-        .eq('user_id', userId)
-        .single()
-
-      if (error && error.code !== 'PGRST116') {
-        throw error
+      const response = await fetch('/api/subscription')
+      const data = await response.json()
+      
+      if (response.ok) {
+        setSubscription(data)
+      } else {
+        console.error('Failed to fetch subscription:', data.error)
+        setSubscription(null)
       }
-
-      setSubscription(data)
     } catch (error) {
       console.error('Error fetching subscription:', error)
+      setSubscription(null)
     } finally {
       setLoading(false)
     }
@@ -145,8 +147,12 @@ export default function AccountPage() {
           <div className="flex flex-wrap gap-3">
             <button
               onClick={async () => {
-                await supabase.auth.signOut()
-                router.push('/')
+                const response = await fetch('/api/auth/logout', {
+                  method: 'POST',
+                })
+                if (response.ok) {
+                  router.push('/')
+                }
               }}
               className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors"
             >

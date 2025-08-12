@@ -1,6 +1,5 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { supabase } from '../utils/supabase/client'
 import Link from 'next/link'
 import * as timeago from 'timeago.js'
 import LoginModal from '../components/LoginModal'
@@ -35,13 +34,18 @@ export default function Home({ initialType }) {
   const fetchSubscription = async () => {
     if (!session?.user?.id) return
     
-    const { data } = await supabase
-      .from('subscriptions')
-      .select('*')
-      .eq('user_id', session.user.id)
-      .single()
-    
-    setSubscription(data)
+    try {
+      const response = await fetch('/api/subscription')
+      const data = await response.json()
+      
+      if (response.ok) {
+        setSubscription(data)
+      } else {
+        console.error('Failed to fetch subscription:', data.error)
+      }
+    } catch (error) {
+      console.error('Error fetching subscription:', error)
+    }
   }
   
   fetchSubscription()
@@ -51,12 +55,13 @@ export default function Home({ initialType }) {
     fetchPosts(initialType || (pathname === '/newest' ? 'newest' : 'front_page'))
     checkSession()
     
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-    })
+    // 使用轮询代替实时监听
+    const interval = setInterval(() => {
+      checkSession()
+    }, 60000) // 每分钟检查一次会话状态
 
     return () => {
-      subscription.unsubscribe()
+      clearInterval(interval)
     }
   }, [initialType, pathname])
 
@@ -75,169 +80,32 @@ export default function Home({ initialType }) {
   }, [session])
 
   async function checkSession() {
-    const { data } = await supabase.auth.getSession()
-    setSession(data.session)
+    try {
+      const response = await fetch('/api/auth/session')
+      const data = await response.json()
+      
+      if (response.ok) {
+        setSession(data.session)
+      } else {
+        setSession(null)
+      }
+    } catch (error) {
+      console.error('Error checking session:', error)
+      setSession(null)
+    }
   }
 
     async function fetchPosts(type = 'front_page') {
   setLoading(true)
   try {
-    if (type === 'front_page') {
-      // 使用 JOIN 一次性获取 hn_front_page_posts 和 hn_posts 数据
-      const { data, error } = await supabase
-        .from('hn_front_page_posts')
-        .select(`
-          id,
-          created_at,
-          hn_posts (
-            hn_id,
-            title,
-            url,
-            points,
-            created_at,
-            descendants,
-            text,
-            user_id,
-            content_summary
-          )
-        `)
-        .order('created_at', { ascending: false })
-        .limit(100);
-
-      if (error) throw error;
-
-      // 过滤掉 hn_posts 为 null 的记录并格式化数据，然后按 ID 排序
-      const formattedHnPosts = data
-        .filter(item => item.hn_posts !== null)
-        .map(item => ({
-          ...item.hn_posts,
-          source: 'hn',
-          id: item.id,
-          text: item.hn_posts.text,
-          comments_count: item.hn_posts.descendants,
-          user: { username: item.hn_posts.user_id || 'anonymous' },
-          comments: item.hn_posts.comments || []
-        }))
-        .sort((a, b) => b.points - a.points); // 按 points从大到小排序
-
-      setPosts(formattedHnPosts)
-    } else if (type === 'newest') {
-      // 使用 JOIN 一次性获取 hn_news_posts 和 hn_posts 数据
-      const { data, error } = await supabase
-        .from('hn_news_posts')
-        .select(`
-          id,
-          created_at,
-          hn_posts (
-            hn_id,
-            title,
-            url,
-            points,
-            created_at,
-            descendants,
-            user_id,
-            text,
-            content_summary
-          )
-        `)
-        .order('created_at', { ascending: false })
-        .limit(100);
-
-      if (error) throw error;
-
-      // 过滤掉 hn_posts 为 null 的记录并格式化数据，然后按 ID 排序
-      const formattedHnPosts = data
-        .filter(item => item.hn_posts !== null)
-        .map(item => ({
-          ...item.hn_posts,
-          id: item.id,
-          source: 'hn',
-          comments_count: item.hn_posts.descendants,
-          text: item.hn_posts.text,
-          user: { username: item.hn_posts.user_id || 'anonymous' },
-          comments: item.hn_posts.comments || []
-        }))
-        .sort((a, b) => b.points - a.points); // 按 points从大到小排序
-
-      setPosts(formattedHnPosts)
-    } else if (type === 'ask') {
-      // 使用 JOIN 一次性获取 hn_ask_posts 和 hn_posts 数据
-      const { data, error } = await supabase
-        .from('hn_ask_posts')
-        .select(`
-          id,
-          created_at,
-          hn_posts (
-            hn_id,
-            title,
-            url,
-            points,
-            created_at,
-            descendants,
-            user_id,
-            text,
-            content_summary
-          )
-        `)
-        .order('created_at', { ascending: false })
-        .limit(100);
-
-      if (error) throw error;
-
-      // 过滤掉 hn_posts 为 null 的记录并格式化数据，然后按 ID 排序
-      const formattedHnPosts = data
-        .filter(item => item.hn_posts !== null)
-        .map(item => ({
-          ...item.hn_posts,
-          source: 'hn',
-          id: item.id,
-          comments_count: item.hn_posts.descendants,
-          text: item.hn_posts.text,
-          user: { username: item.hn_posts.user_id || 'anonymous' },
-          comments: item.hn_posts.comments || []
-        }))
-        .sort((a, b) => b.points - a.points); // 按 points从大到小排序
-
-      setPosts(formattedHnPosts)
-    } else if (type === 'show') {
-      // 使用 JOIN 一次性获取 hn_show_posts 和 hn_posts 数据
-      const { data, error } = await supabase
-        .from('hn_show_posts')
-        .select(`
-          id,
-          created_at,
-          hn_posts (
-            hn_id,
-            title,
-            url,
-            text,
-            points,
-            created_at,
-            descendants,
-            user_id,
-            content_summary
-          )
-        `)
-        .order('created_at', { ascending: false })
-        .limit(100);
-
-      if (error) throw error;
-
-      // 过滤掉 hn_posts 为 null 的记录并格式化数据，然后按 ID 排序
-      const formattedHnPosts = data
-        .filter(item => item.hn_posts !== null)
-        .map(item => ({
-          ...item.hn_posts,
-          id: item.id,
-          source: 'hn',
-          comments_count: item.hn_posts.descendants,
-          text: item.hn_posts.text,
-          user: { username: item.hn_posts.user_id || 'anonymous' },
-          comments: item.hn_posts.comments || []
-        }))
-        .sort((a, b) => b.points - a.points); // 按 points从大到小排序
-
-      setPosts(formattedHnPosts)
+    const response = await fetch(`/api/posts?type=${type}`)
+    const data = await response.json()
+    
+    if (response.ok) {
+      setPosts(data)
+    } else {
+      console.error('Failed to fetch posts:', data.error)
+      setPosts([])
     }
   } catch (error) {
     console.error('Error fetching posts:', error)
@@ -248,34 +116,39 @@ export default function Home({ initialType }) {
 }
 
   async function fetchUserInterests() {
-    const { data } = await supabase
-      .from('user_post_interests')
-      .select('post_id, interest_type')
-      .eq('user_id', session.user.id);
-
-    const interests = {};
-    data?.forEach(item => {
-      interests[item.post_id] = item.interest_type;
-    });
-    setUserInterests(interests);
+    try {
+      const response = await fetch('/api/user-interests')
+      const data = await response.json()
+      
+      if (response.ok) {
+        setUserInterests(data)
+      } else {
+        console.error('Failed to fetch user interests:', data.error)
+      }
+    } catch (error) {
+      console.error('Error fetching user interests:', error)
+    }
   }
 
   const handleUpvote = async (postId) => {
     try {
-      const { data: post } = await supabase
-        .from('hn_posts')
-        .select('points')
-        .eq('id', postId)
-        .single()
+      const response = await fetch('/api/upvote', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ postId })
+      })
       
-      await supabase
-        .from('posts')
-        .update({ points: (post.points || 0) + 1 })
-        .eq('id', postId)
+      const data = await response.json()
       
-      setPosts(posts.map(p => 
-        p.id === postId ? { ...p, points: (p.points || 0) + 1 } : p
-      ))
+      if (response.ok) {
+        setPosts(posts.map(p => 
+          p.id === postId ? { ...p, points: data.newPoints } : p
+        ))
+      } else {
+        console.error('Failed to upvote:', data.error)
+      }
     } catch (error) {
       console.error('Error upvoting:', error)
     }
@@ -283,9 +156,17 @@ export default function Home({ initialType }) {
 
   const handleLogout = async () => {
     try {
-      await supabase.auth.signOut()
-      setIsUserMenuOpen(false) // 确保关闭菜单
-      router.push('/') // 明确跳转回首页
+      const response = await fetch('/api/auth/logout', {
+        method: 'POST',
+      })
+      
+      if (response.ok) {
+        setSession(null)
+        setIsUserMenuOpen(false)
+        router.push('/')
+      } else {
+        console.error('Failed to logout')
+      }
     } catch (error) {
       console.error('Error logging out:', error)
     }
@@ -395,34 +276,31 @@ export default function Home({ initialType }) {
     }
   
     try {
-      if (interest === null) {
-        await supabase
-          .from('user_post_interests')
-          .delete()
-          .eq('user_id', session.user.id)
-          .eq('post_id', postId);
-        
-        setUserInterests(prev => {
-          const newInterests = {...prev};
-          delete newInterests[postId];
-          return newInterests;
-        });
+      const response = await fetch('/api/user-interests', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ postId, interest })
+      })
+      
+      const data = await response.json()
+      
+      if (response.ok) {
+        if (interest === null) {
+          setUserInterests(prev => {
+            const newInterests = {...prev};
+            delete newInterests[postId];
+            return newInterests;
+          });
+        } else {
+          setUserInterests(prev => ({
+            ...prev,
+            [postId]: interest
+          }));
+        }
       } else {
-        await supabase
-          .from('user_post_interests')
-          .upsert(
-            {
-              user_id: session.user.id,
-              post_id: postId,
-              interest_type: interest
-            },
-            { onConflict: ['user_id', 'post_id'] }
-          );
-        
-        setUserInterests(prev => ({
-          ...prev,
-          [postId]: interest
-        }));
+        console.error('Failed to update interest:', data.error);
       }
     } catch (error) {
       console.error('Error updating interest:', error);
@@ -756,8 +634,8 @@ export default function Home({ initialType }) {
                         {(
                           <div className="ml-auto">
                             <FacebookReaction 
-                              postId={post.hn_id}
-                              currentReaction={session ? userInterests[post.hn_id] : null}
+                              postId={post.id}
+                              currentReaction={session ? userInterests[post.id] : null}
                               onSelect={(postId, reaction) => {
                                 if (!session) {
                                   setIsLoginOpen(true);
