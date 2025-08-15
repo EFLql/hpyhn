@@ -304,12 +304,15 @@ export async function syncHnPosts(type = 'front_page', limit = 200) {
         timestamp: new Date().toISOString()
       };
       
-      await invokeLambda(payload);
+      if (type == 'show') {
+        await invokeLambda(payload);
+      }
     }
     
     // 返回是否还有更多文章需要处理
     return { 
       processed: savedPosts, 
+      [type]: postsToInsert, // type 作为 key，帖子详细信息作为 value
       hasMore: storiesToProcess.length === 10 && savedPosts === 10 
     }
   } catch (error) {

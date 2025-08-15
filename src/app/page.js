@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import * as timeago from 'timeago.js'
 import LoginModal from '../components/LoginModal'
@@ -51,27 +51,90 @@ export default function Home({ initialType }) {
   fetchSubscription()
 }, [session])
 
-  useEffect(() => {
-    fetchPosts(initialType || (pathname === '/newest' ? 'newest' : 'front_page'))
-    checkSession()
-    
-    // 使用轮询代替实时监听
-    const interval = setInterval(() => {
-      checkSession()
-    }, 60000) // 每分钟检查一次会话状态
+  // 在组件顶部添加这个函数
+  function getPostType(initialType, pathname) {
+    let type = initialType || (pathname === '/news' ? 'news' : 'front_page')
 
-    return () => {
-      clearInterval(interval)
-    }
-  }, [initialType, pathname])
-
-  useEffect(() => {
+    // Handle tab navigation
     if (pathname === '/newest') {
-      fetchPosts('newest')
+      type = 'news'
+    } else if (pathname === '/ask') {
+      type = 'ask'
+    } else if (pathname === '/show') {
+      type = 'show'
     } else if (pathname === '/') {
-      fetchPosts('front_page')
+      type = 'front_page'
     }
-  }, [pathname])
+    
+    return type;
+  }
+   const postType = useMemo(() => {
+    return getPostType(initialType, pathname);
+  }, [initialType, pathname]);
+
+  const lastPostTypeRef = useRef();
+
+  useEffect(() => {
+    if (lastPostTypeRef.current === postType) {
+      // postType没有变化，不需要fetch
+      return;
+    }
+    lastPostTypeRef.current = postType;
+
+    let cancelled = false;
+    let mainInterval;
+    let isFetching = false;
+
+    console.log('Main useEffect triggered', { postType, initialType, pathname });
+
+    const fetchData = async () => {
+      if (isFetching) {
+        console.log('Already fetching, skipping');
+        return;
+      }
+      isFetching = true;
+      if (cancelled) {
+        console.log('Cancelled before fetch');
+        isFetching = false;
+        return;
+      }
+      try {
+        console.log('Fetching posts for type:', postType);
+        await fetchPosts(postType);
+        if (cancelled) {
+          console.log('Cancelled after fetchPosts');
+          isFetching = false;
+          return;
+        }
+        console.log('Fetching session');
+        await checkSession();
+        if (!cancelled) {
+          mainInterval = setInterval(() => {
+            if (!cancelled) {
+              console.log('Polling session');
+              checkSession();
+            }
+          }, 60000) // 每分钟检查一次会话状态
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Error in main useEffect:', error);
+        }
+      } finally {
+        isFetching = false;
+      }
+    };
+    
+    fetchData();
+    
+    return () => {
+      console.log('Main useEffect cleanup', { postType, initialType, pathname });
+      cancelled = true;
+      if (mainInterval) {
+        clearInterval(mainInterval);
+      }
+    }
+  }, [postType]) // 只依赖postType，确保只在postType改变时触发
 
   useEffect(() => {
     if (session?.user?.id) {
@@ -95,24 +158,48 @@ export default function Home({ initialType }) {
     }
   }
 
-    async function fetchPosts(type = 'front_page') {
-  setLoading(true)
-  try {
-    const response = await fetch(`/api/posts?type=${type}`)
-    const data = await response.json()
-    
-    if (response.ok) {
-      setPosts(data)
-    } else {
-      console.error('Failed to fetch posts:', data.error)
-      setPosts([])
+  async function fetchPosts(type = 'front_page') {
+    setLoading(true)
+    try {
+      // 首先尝试调用Cloudflare Worker接口
+      const response = await fetch(`https://hyphn-kv.1633121980.workers.dev/api/posts?type=${type}`)
+      const data = await response.json()
+      //console.Console.log('Fetched posts:', data)
+      if (response.ok) {
+        setPosts(data)
+      } else {
+        // 如果Cloudflare Worker接口返回错误，尝试回退到后端接口
+        console.warn('Cloudflare Worker API failed, falling back to backend API')
+        const fallbackResponse = await fetch(`/api/posts?type=${type}`)
+        const fallbackData = await fallbackResponse.json()
+
+        if (fallbackResponse.ok) {
+          setPosts(fallbackData)
+        } else {
+          console.error('Failed to fetch posts from backend:', fallbackData.error)
+          setPosts([])
+        }
+      }
+    } catch (error) {
+      // 如果Cloudflare Worker接口网络错误，尝试回退到后端接口
+      console.warn('Cloudflare Worker API failed, falling back to backend API:', error)
+      try {
+        const fallbackResponse = await fetch(`/api/posts?type=${type}`)
+        const fallbackData = await fallbackResponse.json()
+
+        if (fallbackResponse.ok) {
+          setPosts(fallbackData)
+        } else {
+          console.error('Failed to fetch posts from backend:', fallbackData.error)
+          setPosts([])
+        }
+      } catch (fallbackError) {
+        console.error('Error fetching posts from both APIs:', fallbackError)
+        setPosts([])
+      }
+    } finally {
+      setLoading(false)
     }
-  } catch (error) {
-    console.error('Error fetching posts:', error)
-    setPosts([])
-  } finally {
-    setLoading(false)
-  }
 }
 
   async function fetchUserInterests() {
@@ -261,13 +348,21 @@ export default function Home({ initialType }) {
     return null;
   }
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetchPosts('newest')
-    }, 20 * 60 * 1000)
-    
-    return () => clearInterval(interval)
-  }, [])
+    useEffect(() => {
+    // 只有在首页时才定时刷新
+    if (pathname === '/') {
+      console.log('Setting up scheduled fetch for news');
+      const interval = setInterval(() => {
+        console.log('Scheduled fetchPosts for news');
+        fetchPosts('news')
+      }, 20 * 60 * 1000)
+      
+      return () => {
+        console.log('Clearing scheduled fetch for news');
+        clearInterval(interval)
+      }
+    }
+  }, [pathname]) // 只依赖pathname
 
   const handleInterest = async (postId, interest) => {
     if (!session) {
@@ -398,34 +493,6 @@ export default function Home({ initialType }) {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-2 bg-orange-50 relative min-h-screen">
-      {session && (
-        <div className="fixed bottom-4 right-4 flex flex-col items-end space-y-2">
-          {syncMessage && (
-            <div className={`px-4 py-2 rounded-md ${
-              syncMessage.includes('成功') 
-                ? 'bg-green-100 text-green-800' 
-                : 'bg-red-100 text-red-800'
-            }`}>
-              {syncMessage}
-            </div>
-          )}
-          <button
-            onClick={handleManualSync}
-            disabled={syncLoading}
-            className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-md shadow-md transition-colors disabled:opacity-50 flex items-center"
-          >
-            {syncLoading ? (
-              <>
-                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Syncing...
-              </>
-            ) : 'Manual Sync HN Data'}
-          </button>
-        </div>
-      )}
 
       <header className="bg-orange-500 py-2 px-4 flex justify-between items-center">
   <div className="flex items-center">
@@ -438,7 +505,7 @@ export default function Home({ initialType }) {
         className="text-white hover:underline"
         onClick={() => {
           setCurrentPage(1);
-          fetchPosts('newest');
+          // 不再直接调用fetchPosts，让useEffect处理
         }}
       >
         new
@@ -448,7 +515,7 @@ export default function Home({ initialType }) {
         className="text-white hover:underline"
         onClick={() => {
           setCurrentPage(1);
-          fetchPosts('ask');
+          // 不再直接调用fetchPosts，让useEffect处理
         }}
       >
         ask
@@ -458,7 +525,7 @@ export default function Home({ initialType }) {
         className="text-white hover:underline"
         onClick={() => {
           setCurrentPage(1);
-          fetchPosts('show');
+          // 不再直接调用fetchPosts，让useEffect处理
         }}
       >
         show

@@ -26,7 +26,7 @@ export async function GET(request) {
     let tableName
     
     switch (type) {
-      case 'newest':
+      case 'news':
         tableName = 'hn_news_posts'
         break
       case 'ask':

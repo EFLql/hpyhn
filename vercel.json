@@ -1,21 +1,5 @@
 {
   "version": 2,
   "crons": [
-    {
-      "path": "/api/sync-front-page",
-      "schedule": "*/20 * * * *" 
-    },
-    {
-      "path": "/api/sync-ask",
-      "schedule": "*/20 * * * *" 
-    },
-    {
-      "path": "/api/sync-news",
-      "schedule": "*/20 * * * *" 
-    },
-    {
-      "path": "/api/sync-show",
-      "schedule": "*/20 * * * *" 
-    }
   ]
 }
