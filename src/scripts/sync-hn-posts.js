@@ -8,43 +8,50 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
-// 获取 HN 不同类型的文章ID - 修改为使用 Algolia API
+// 获取 HN 不同类型的文章ID - 修改为使用官方 API
 async function fetchTopStories(type = 'front_page', limit = 200) {
   let url;
   
   switch(type) {
     case 'front_page':
-      url = `https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=${limit}`;
-      break;
+      // Hacker News 官方 API 获取 top stories
+      const topStoriesRes = await fetch('https://hacker-news.firebaseio.com/v0/topstories.json')
+      const topStoriesIds = await topStoriesRes.json()
+      return topStoriesIds.slice(0, limit);
     case 'news':
-      url = `https://hn.algolia.com/api/v1/search_by_date?tags=story&hitsPerPage=${limit}`;
-      break;
+      // Hacker News 官方 API 获取 new stories
+      const newStoriesRes = await fetch('https://hacker-news.firebaseio.com/v0/newstories.json')
+      const newStoriesIds = await newStoriesRes.json()
+      return newStoriesIds.slice(0, limit);
     case 'ask':
-      url = `https://hn.algolia.com/api/v1/search_by_date?tags=ask_hn&hitsPerPage=${limit}`;
-      break;
+      // Hacker News 官方 API 获取 ask stories
+      const askStoriesRes = await fetch('https://hacker-news.firebaseio.com/v0/askstories.json')
+      const askStoriesIds = await askStoriesRes.json()
+      return askStoriesIds.slice(0, limit);
     case 'show':
-      url = `https://hn.algolia.com/api/v1/search_by_date?tags=show_hn&hitsPerPage=${limit}`;
-      break;
+      // Hacker News 官方 API 获取 show stories
+      const showStoriesRes = await fetch('https://hacker-news.firebaseio.com/v0/showstories.json')
+      const showStoriesIds = await showStoriesRes.json()
+      return showStoriesIds.slice(0, limit);
     default:
-      url = `https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=${limit}`;
+      // 默认获取 top stories
+      const defaultStoriesRes = await fetch('https://hacker-news.firebaseio.com/v0/topstories.json')
+      const defaultStoriesIds = await defaultStoriesRes.json()
+      return defaultStoriesIds.slice(0, limit);
   }
-  
-  const res = await fetch(url)
-  const data = await res.json()
-  return data.hits
 }
 
-// 获取单篇文章详情 - 修改为使用 Algolia API
+// 获取单篇文章详情 - 修改为使用官方 API
 async function fetchStory(id) {
   try {
-    const res = await fetch(`https://hn.algolia.com/api/v1/items/${id}`)
+    const res = await fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`)
     if (!res.ok) {
       throw new Error(`获取文章失败: ${res.status} ${res.statusText}`);
     }
     return res.json()
   } catch (error) {
     console.error(`获取文章 ${id} 失败:`, error);
-    return { children: [] }; // 返回空评论数组作为后备
+    return {}; // 返回空对象作为后备
   }
 }
 
@@ -55,18 +62,21 @@ async function fetchComments(postId) {
     const story = await fetchStory(postId);
     
     // 检查是否有评论
-    if (!story.children || story.children.length === 0) {
+    if (!story.kids || story.kids.length === 0) {
       console.log(`文章 ${postId} 没有评论`);
       return;
     }
     
     // 只取前3条评论
-    const top3Comments = story.children.slice(0, 3);
+    const top3CommentIds = story.kids.slice(0, 3);
     
-    console.log(`开始处理文章 ${postId} 的 ${top3Comments.length} 条评论...`);
+    console.log(`开始处理文章 ${postId} 的 ${top3CommentIds.length} 条评论...`);
     
-    for (const comment of top3Comments) {
+    for (const commentId of top3CommentIds) {
       try {
+        // 获取评论详情
+        const comment = await fetchStory(commentId);
+        
         if (!comment || !comment.text) continue
 
         // 保存评论
@@ -76,9 +86,9 @@ async function fetchComments(postId) {
             hn_id: comment.id,
             post_id: postId,
             text: comment.text,
-            user_id: comment.author || 'anonymous',
-            parent_id: comment.parent_id || null,
-            created_at: new Date(comment.created_at_i * 1000).toISOString()
+            user_id: comment.by || 'anonymous',
+            parent_id: comment.parent || null,
+            created_at: new Date(comment.time * 1000).toISOString()
           }, {
             onConflict: 'hn_id'
           })
@@ -87,7 +97,7 @@ async function fetchComments(postId) {
         
         await new Promise(resolve => setTimeout(resolve, 200)) // 限速
       } catch (error) {
-        console.error(`处理评论 ${comment.id} 失败:`, error)
+        console.error(`处理评论 ${commentId} 失败:`, error)
       }
     }
   } catch (error) {
@@ -157,28 +167,36 @@ async function invokeLambda(payload) {
 export async function syncHnPosts(type = 'front_page', limit = 200) {
   try {
     console.log(`开始同步 Hacker News ${type} 数据，数量: ${limit}...`)
-    const stories = await fetchTopStories(type, limit)
+    const storyIds = await fetchTopStories(type, limit)
     
-    // 应用偏移量
-    const storiesToProcess = stories
+    // 获取每个故事的详细信息
+    const stories = [];
+    for (const id of storyIds) {
+      const story = await fetchStory(id);
+      if (story && story.title) {
+        stories.push(story);
+      }
+      // 添加延迟以避免过于频繁的请求
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
     
-    if (storiesToProcess.length === 0) {
+    if (stories.length === 0) {
       console.log('没有更多文章需要处理')
       return { processed: 0, hasMore: false }
     }
 
     // 准备批量插入的数据
-    const postsToInsert = storiesToProcess
-      .filter(story => story && story.title && story.story_id) // 确保有必要字段
+    const postsToInsert = stories
+      .filter(story => story && story.title && story.id) // 确保有必要字段
       .map(story => ({
-        hn_id: story.story_id,
+        hn_id: story.id,
         title: story.title,
-        url: story.url || `https://news.ycombinator.com/item?id=${story.story_id}`,
-        points: story.points || 0,
-        user_id: story.author || 'anonymous',
-        descendants: story.num_comments || 0,
-        created_at: new Date(story.created_at_i * 1000).toISOString(),
-        text: story.story_text || ''
+        url: story.url || `https://news.ycombinator.com/item?id=${story.id}`,
+        points: story.score || 0,
+        user_id: story.by || 'anonymous',
+        descendants: story.descendants || 0,
+        created_at: new Date(story.time * 1000).toISOString(),
+        text: story.text || ''
       }));
 
     // 批量插入主贴到 hn_posts 表
@@ -315,7 +333,7 @@ export async function syncHnPosts(type = 'front_page', limit = 200) {
     return { 
       processed: savedPosts, 
       [type]: postsToInsert, // type 作为 key，帖子详细信息作为 value
-      hasMore: storiesToProcess.length === 10 && savedPosts === 10 
+      hasMore: stories.length === limit 
     }
   } catch (error) {
     console.error('同步错误:', error)

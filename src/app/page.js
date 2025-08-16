@@ -162,8 +162,8 @@ export default function Home({ initialType }) {
     setLoading(true)
     try {
       // 首先尝试调用Cloudflare Worker接口
-      //const response = await fetch(`https://hyphn-kv.1633121980.workers.dev/api/posts?type=${type}`)
-      const response = await fetch(`http://127.0.0.1:8787/api/posts?type=${type}`)
+      const cloudflareWorkerUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_WORKER_URL;
+      const response = await fetch(`${cloudflareWorkerUrl}/api/posts?type=${type}`)
       const data = await response.json()
       //console.Console.log('Fetched posts:', data)
       if (response.ok) {
@@ -206,8 +206,7 @@ export default function Home({ initialType }) {
     async function fetchUserInterests() {
     try {
       // 首先尝试调用Cloudflare Worker接口
-      //const cloudflareWorkerUrl = 'https://hyphn-kv.1633121980.workers.dev';
-      const cloudflareWorkerUrl = 'http://localhost:8787';
+      const cloudflareWorkerUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_WORKER_URL;
       console.log('Fetching user interests from Cloudflare Worker:', cloudflareWorkerUrl);
       const cloudflareResponse = await fetch(`${cloudflareWorkerUrl}/api/user-interests?user_id=${session?.user?.id}`);
       
@@ -253,8 +252,7 @@ export default function Home({ initialType }) {
   
     try {
       // 首先尝试调用Cloudflare Worker接口
-      //const cloudflareWorkerUrl = 'https://hyphn-kv.1633121980.workers.dev';
-      const cloudflareWorkerUrl = 'http://localhost:8787';
+      const cloudflareWorkerUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_WORKER_URL;
       console.log('Fetching user interests from Cloudflare Worker:', cloudflareWorkerUrl);
       const cloudflareResponse = await fetch(`${cloudflareWorkerUrl}/api/user-interests`, {
         method: 'POST',
