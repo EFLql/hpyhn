@@ -13,8 +13,8 @@ export async function GET(request) {
     return Response.json({ 
       success: true, 
       type: 'ask',
-      count: result.count,
-      message: `Successfully synced ${result.count} ask posts`
+      count: result.processed,
+      message: `Successfully synced ${result.processed} ask posts`
     })
   } catch (error) {
     return Response.json({ 

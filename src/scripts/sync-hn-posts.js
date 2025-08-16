@@ -143,10 +143,12 @@ async function invokeLambda(payload) {
 
   if (!res.ok) {
     console.error('API Gateway 调用失败:', res.status, res.statusText);
-    throw new Error(`API Gateway 调用失败: ${res.status} ${res.statusText}`);
+    //throw new Error(`API Gateway 调用失败: ${res.status} ${res.statusText}`);
   }
-  const text = await res.text();
-  console.log('API Gateway 调用成功:', text);
+  else  {
+    //const text = await res.text();
+    console.log('API Gateway 调用成功:', text);
+  }
 
   return res;
 }

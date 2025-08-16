@@ -18,7 +18,7 @@ export async function GET(request) {
   
   // 注意：这个路由不需要用户认证，因为它是获取公开的帖子数据
   const { searchParams } = new URL(request.url)
-  const type = searchParams.get('type') || 'front_page'
+  const type = searchParams.get('type') || 'front-page'
   const limit = searchParams.get('limit') || 100
   
   try {
@@ -35,7 +35,7 @@ export async function GET(request) {
       case 'show':
         tableName = 'hn_show_posts'
         break
-      case 'front_page':
+      case 'front-page':
       default:
         tableName = 'hn_front_page_posts'
         break

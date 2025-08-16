@@ -53,7 +53,7 @@ export default function Home({ initialType }) {
 
   // 在组件顶部添加这个函数
   function getPostType(initialType, pathname) {
-    let type = initialType || (pathname === '/news' ? 'news' : 'front_page')
+    let type = initialType || (pathname === '/news' ? 'news' : 'front-page')
 
     // Handle tab navigation
     if (pathname === '/newest') {
@@ -63,7 +63,7 @@ export default function Home({ initialType }) {
     } else if (pathname === '/show') {
       type = 'show'
     } else if (pathname === '/') {
-      type = 'front_page'
+      type = 'front-page'
     }
     
     return type;
@@ -162,7 +162,8 @@ export default function Home({ initialType }) {
     setLoading(true)
     try {
       // 首先尝试调用Cloudflare Worker接口
-      const response = await fetch(`https://hyphn-kv.1633121980.workers.dev/api/posts?type=${type}`)
+      //const response = await fetch(`https://hyphn-kv.1633121980.workers.dev/api/posts?type=${type}`)
+      const response = await fetch(`http://127.0.0.1:8787/api/posts?type=${type}`)
       const data = await response.json()
       //console.Console.log('Fetched posts:', data)
       if (response.ok) {
@@ -202,44 +203,147 @@ export default function Home({ initialType }) {
     }
 }
 
-  async function fetchUserInterests() {
+    async function fetchUserInterests() {
     try {
-      const response = await fetch('/api/user-interests')
-      const data = await response.json()
+      // 首先尝试调用Cloudflare Worker接口
+      //const cloudflareWorkerUrl = 'https://hyphn-kv.1633121980.workers.dev';
+      const cloudflareWorkerUrl = 'http://localhost:8787';
+      console.log('Fetching user interests from Cloudflare Worker:', cloudflareWorkerUrl);
+      const cloudflareResponse = await fetch(`${cloudflareWorkerUrl}/api/user-interests?user_id=${session?.user?.id}`);
       
-      if (response.ok) {
-        setUserInterests(data)
+      const cloudflareData = await cloudflareResponse.json();
+      
+      if (cloudflareResponse.ok) {
+        setUserInterests(cloudflareData);
       } else {
-        console.error('Failed to fetch user interests:', data.error)
+        // 如果Cloudflare Worker接口返回错误，尝试回退到后端接口
+        console.warn('Cloudflare Worker API failed, falling back to backend API');
+        const fallbackResponse = await fetch('/api/user-interests');
+        const fallbackData = await fallbackResponse.json();
+  
+        if (fallbackResponse.ok) {
+          setUserInterests(fallbackData);
+        } else {
+          console.error('Failed to fetch user interests from backend:', fallbackData.error);
+        }
       }
     } catch (error) {
-      console.error('Error fetching user interests:', error)
+      // 如果Cloudflare Worker接口网络错误，尝试回退到后端接口
+      console.warn('Cloudflare Worker API failed, falling back to backend API:', error);
+      try {
+        const fallbackResponse = await fetch('/api/user-interests');
+        const fallbackData = await fallbackResponse.json();
+  
+        if (fallbackResponse.ok) {
+          setUserInterests(fallbackData);
+        } else {
+          console.error('Failed to fetch user interests from backend:', fallbackData.error);
+        }
+      } catch (fallbackError) {
+        console.error('Error fetching user interests from both APIs:', fallbackError);
+      }
     }
   }
 
-  const handleUpvote = async (postId) => {
+  const handleInterest = async (postId, interest) => {
+    if (!session) {
+      setIsLoginOpen(true);
+      return;
+    }
+  
     try {
-      const response = await fetch('/api/upvote', {
+      // 首先尝试调用Cloudflare Worker接口
+      //const cloudflareWorkerUrl = 'https://hyphn-kv.1633121980.workers.dev';
+      const cloudflareWorkerUrl = 'http://localhost:8787';
+      console.log('Fetching user interests from Cloudflare Worker:', cloudflareWorkerUrl);
+      const cloudflareResponse = await fetch(`${cloudflareWorkerUrl}/api/user-interests`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ postId })
-      })
+        body: JSON.stringify({ postId, interest, user_id: session.user.id })
+      });
       
-      const data = await response.json()
+      const cloudflareData = await cloudflareResponse.json();
       
-      if (response.ok) {
-        setPosts(posts.map(p => 
-          p.id === postId ? { ...p, points: data.newPoints } : p
-        ))
+      if (cloudflareResponse.ok) {
+        if (interest === null) {
+          setUserInterests(prev => {
+            const newInterests = {...prev};
+            delete newInterests[postId];
+            return newInterests;
+          });
+        } else {
+          setUserInterests(prev => ({
+            ...prev,
+            [postId]: interest
+          }));
+        }
       } else {
-        console.error('Failed to upvote:', data.error)
+        // 如果Cloudflare Worker接口返回错误，尝试回退到后端接口
+        console.warn('Cloudflare Worker API failed, falling back to backend API');
+        const fallbackResponse = await fetch('/api/user-interests', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ postId, interest })
+        });
+        
+        const fallbackData = await fallbackResponse.json();
+        
+        if (fallbackResponse.ok) {
+          if (interest === null) {
+            setUserInterests(prev => {
+              const newInterests = {...prev};
+              delete newInterests[postId];
+              return newInterests;
+            });
+          } else {
+            setUserInterests(prev => ({
+              ...prev,
+              [postId]: interest
+            }));
+          }
+        } else {
+          console.error('Failed to update interest from backend:', fallbackData.error);
+        }
       }
     } catch (error) {
-      console.error('Error upvoting:', error)
+      // 如果Cloudflare Worker接口网络错误，尝试回退到后端接口
+      console.warn('Cloudflare Worker API failed, falling back to backend API:', error);
+      try {
+        const fallbackResponse = await fetch('/api/user-interests', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ postId, interest })
+        });
+        
+        const fallbackData = await fallbackResponse.json();
+        
+        if (fallbackResponse.ok) {
+          if (interest === null) {
+            setUserInterests(prev => {
+              const newInterests = {...prev};
+              delete newInterests[postId];
+              return newInterests;
+            });
+          } else {
+            setUserInterests(prev => ({
+              ...prev,
+              [postId]: interest
+            }));
+          }
+        } else {
+          console.error('Failed to update interest from backend:', fallbackData.error);
+        }
+      } catch (fallbackError) {
+        console.error('Error updating interest from both APIs:', fallbackError);
+      }
     }
-  }
+  };
 
   const handleLogout = async () => {
     try {
@@ -363,44 +467,6 @@ export default function Home({ initialType }) {
       }
     }
   }, [pathname]) // 只依赖pathname
-
-  const handleInterest = async (postId, interest) => {
-    if (!session) {
-      setIsLoginOpen(true);
-      return;
-    }
-  
-    try {
-      const response = await fetch('/api/user-interests', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ postId, interest })
-      })
-      
-      const data = await response.json()
-      
-      if (response.ok) {
-        if (interest === null) {
-          setUserInterests(prev => {
-            const newInterests = {...prev};
-            delete newInterests[postId];
-            return newInterests;
-          });
-        } else {
-          setUserInterests(prev => ({
-            ...prev,
-            [postId]: interest
-          }));
-        }
-      } else {
-        console.error('Failed to update interest:', data.error);
-      }
-    } catch (error) {
-      console.error('Error updating interest:', error);
-    }
-  };
 
   // 新增实时获取评论的函数 - 优化版本
   const fetchLiveComments = async (postId) => {
@@ -602,17 +668,7 @@ export default function Home({ initialType }) {
                 <li key={post.id} className="py-2 px-1 hover:bg-gray-50">
                   <div className="flex items-baseline">
                     <span className="text-gray-500 mr-1">{(currentPage - 1) * postsPerPage + index + 1}.</span>
-                    {post.source === 'hn' ? (
                       <span className="text-xs bg-orange-100 text-orange-800 px-1 rounded mr-1">HN</span>
-                    ) : (
-                      <button 
-                        onClick={() => handleUpvote(post.hn_id)}
-                        className="text-gray-500 hover:text-orange-500 mr-1"
-                        aria-label="Upvote"
-                      >
-                        ▲
-                      </button>
-                    )}
                     <div className="flex-1">
                       <div className="flex flex-wrap items-baseline">
                         <a 
@@ -641,7 +697,7 @@ export default function Home({ initialType }) {
                           </span>
                         )}
                         {/* Hacker News original post link positioned at top-right of title */}
-                        {post.source === 'hn' && post.hn_id && (
+                        {post.hn_id && (
                           <a 
                             href={`https://news.ycombinator.com/item?id=${post.hn_id}`}
                             target="_blank"
@@ -676,7 +732,7 @@ export default function Home({ initialType }) {
                             className="hover:underline ml-1"
                           >
                             {post.comments_count || 0} comments
-                            {post.source === 'hn' && post.comments_count > 0 && (
+                            {post.comments_count > 0 && (
                               <span className="ml-1">({expandedComments[post.hn_id] ? 'collapse' : 'show top3 comments'})</span>
                             )}
                           </button>
@@ -718,7 +774,7 @@ export default function Home({ initialType }) {
                   </div>
 
                   {/* Summary and keywords show/hide logic */}
-                  {post.source === 'hn' && expandedSummaries[post.hn_id] && post.content_summary && (
+                  {expandedSummaries[post.hn_id] && post.content_summary && (
                     <div className="mt-2 ml-6 p-3 bg-blue-50 rounded border border-blue-200">
                       <div className="text-xs font-medium text-blue-800 mb-1">Article Summary:</div>
                       <div className="text-xs text-gray-700">
@@ -738,7 +794,7 @@ export default function Home({ initialType }) {
                   )}
 
                   {/* Comments show/hide logic */}
-                  {post.source === 'hn' && expandedComments[post.hn_id] && (
+                  {expandedComments[post.hn_id] && (
                     <div className="mt-2 ml-6 space-y-2 border-l-2 pl-2 border-orange-200">
                       <div className="text-xs font-medium text-orange-800 mb-1">Top 3 Comments:</div>
                       {/* Display live comments or preloaded comments */}
@@ -767,7 +823,7 @@ export default function Home({ initialType }) {
                   )}
 
                   {/* Post text show/hide logic */}
-                  {post.source === 'hn' && expandedTexts[post.hn_id] && post.text && (
+                  {expandedTexts[post.hn_id] && post.text && (
                     <div className="mt-2 ml-6 p-3 bg-green-50 rounded border border-green-200">
                       <div className="text-xs font-medium text-green-800 mb-1">Post Text:</div>
                       <div 
