@@ -19,7 +19,7 @@ export async function GET(request) {
   // 注意：这个路由不需要用户认证，因为它是获取公开的帖子数据
   const { searchParams } = new URL(request.url)
   const type = searchParams.get('type') || 'front-page'
-  const limit = searchParams.get('limit') || 100
+  const limit = searchParams.get('limit') || 60
   
   try {
     let query
@@ -64,7 +64,7 @@ export async function GET(request) {
     if (error) throw error
     
     // 过滤掉 hn_posts 为 null 的记录并格式化数据
-    const formattedHnPosts = data
+    let formattedHnPosts = data
       .filter(item => item.hn_posts !== null)
       .map(item => ({
         ...item.hn_posts,
@@ -73,8 +73,15 @@ export async function GET(request) {
         text: item.hn_posts.text,
         user: { username: item.hn_posts.user_id || 'anonymous' },
         comments: item.hn_posts.comments || []
-      }))
-      .sort((a, b) => b.points - a.points) // 按 points 从大到小排序
+      }));
+
+    if (type === 'ask') {
+      formattedHnPosts.sort((a, b) => b.comments_count - a.comments_count);
+    } else if (type === 'show') {
+      formattedHnPosts.sort((a, b) => b.points - a.points);
+    } else {
+      formattedHnPosts.sort((a, b) => a.id - b.id);
+    }
     
     return new Response(
       JSON.stringify(formattedHnPosts),

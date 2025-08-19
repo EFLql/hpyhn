@@ -201,24 +201,15 @@ export async function syncHnPosts(type = 'front_page', limit = 200) {
 
     // 批量插入主贴到 hn_posts 表
     if (postsToInsert.length > 0) {
-      const { error: postError } = await supabase
-        .from('hn_posts')
-        .upsert(postsToInsert, {
-          onConflict: 'hn_id'
-        })
-
-      if (postError) {
-        console.error('主贴批量同步失败:', postError)
-        // 如果批量插入失败，逐个插入
-        for (const post of postsToInsert) {
-          const { error: singleError } = await supabase
-            .from('hn_posts')
-            .upsert(post, {
-              onConflict: 'hn_id'
-            })
-          if (singleError) {
-            console.error(`主贴同步失败 ${post.hn_id}:`, singleError)
-          }
+      // Replace batch upsert with sequential insertion to preserve order
+      for (const post of postsToInsert) {
+        const { error } = await supabase
+          .from('hn_posts')
+          .upsert(post, {
+            onConflict: 'hn_id'
+          });
+        if (error) {
+          console.error(`主贴同步失败 ${post.hn_id}:`, error);
         }
       }
     }
@@ -230,85 +221,41 @@ export async function syncHnPosts(type = 'front_page', limit = 200) {
 
     // 批量插入到对应的分类表
     if (typePostsToInsert.length > 0) {
-      let typeError;
-      switch(type) {
-        case 'front_page':
-          const { error: frontError } = await supabase
-            .from('hn_front_page_posts')
-            .upsert(typePostsToInsert, {
-              onConflict: 'post_id'
-            });
-          typeError = frontError;
-          break;
-        case 'news':
-          const { error: newsError } = await supabase
-            .from('hn_news_posts')
-            .upsert(typePostsToInsert, {
-              onConflict: 'post_id'
-            });
-          typeError = newsError;
-          break;
-        case 'ask':
-          const { error: askError } = await supabase
-            .from('hn_ask_posts')
-            .upsert(typePostsToInsert, {
-              onConflict: 'post_id'
-            });
-          typeError = askError;
-          break;
-        case 'show':
-          const { error: showError } = await supabase
-            .from('hn_show_posts')
-            .upsert(typePostsToInsert, {
-              onConflict: 'post_id'
-            });
-          typeError = showError;
-          break;
-      }
-
-      if (typeError) {
-        console.error('分类表批量同步失败:', typeError)
-        // 如果批量插入失败，逐个插入
-        for (const typePost of typePostsToInsert) {
-          let singleError;
-          switch(type) {
-            case 'front_page':
-              const { error: frontSingleError } = await supabase
-                .from('hn_front_page_posts')
-                .upsert(typePost, {
-                  onConflict: 'post_id'
-                });
-              singleError = frontSingleError;
-              break;
-            case 'news':
-              const { error: newsSingleError } = await supabase
-                .from('hn_news_posts')
-                .upsert(typePost, {
-                  onConflict: 'post_id'
-                });
-              singleError = newsSingleError;
-              break;
-            case 'ask':
-              const { error: askSingleError } = await supabase
-                .from('hn_ask_posts')
-                .upsert(typePost, {
-                  onConflict: 'post_id'
-                });
-              singleError = askSingleError;
-              break;
-            case 'show':
-              const { error: showSingleError } = await supabase
-                .from('hn_show_posts')
-                .upsert(typePost, {
-                  onConflict: 'post_id'
-                });
-              singleError = showSingleError;
-              break;
-          }
-          
-          if (singleError) {
-            console.error(`分类表同步失败 ${typePost.post_id}:`, singleError)
-          }
+      // Replace batch upsert with sequential insertion to preserve order
+      for (const typePost of typePostsToInsert) {
+        let error;
+        switch(type) {
+          case 'front_page':
+            ({ error } = await supabase
+              .from('hn_front_page_posts')
+              .upsert(typePost, {
+                onConflict: 'post_id'
+              }));
+            break;
+          case 'news':
+            ({ error } = await supabase
+              .from('hn_news_posts')
+              .upsert(typePost, {
+                onConflict: 'post_id'
+              }));
+            break;
+          case 'ask':
+            ({ error } = await supabase
+              .from('hn_ask_posts')
+              .upsert(typePost, {
+                onConflict: 'post_id'
+              }));
+            break;
+          case 'show':
+            ({ error } = await supabase
+              .from('hn_show_posts')
+              .upsert(typePost, {
+                onConflict: 'post_id'
+              }));
+            break;
+        }
+        if (error) {
+          console.error(`分类表同步失败 ${typePost.post_id}:`, error);
         }
       }
     }

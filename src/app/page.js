@@ -29,6 +29,7 @@ export default function Home({ initialType }) {
   const postsPerPage = 30; // 每页显示30条数据
   const [expandedTexts, setExpandedTexts] = useState({}); // 记录哪些文章的正文是展开的
   const [subscription, setSubscription] = useState(null)
+  const [interestScores, setInterestScores] = useState({});
 
   useEffect(() => {
   const fetchSubscription = async () => {
@@ -106,16 +107,6 @@ export default function Home({ initialType }) {
           isFetching = false;
           return;
         }
-        console.log('Fetching session');
-        await checkSession();
-        if (!cancelled) {
-          mainInterval = setInterval(() => {
-            if (!cancelled) {
-              console.log('Polling session');
-              checkSession();
-            }
-          }, 60000) // 每分钟检查一次会话状态
-        }
       } catch (error) {
         if (!cancelled) {
           console.error('Error in main useEffect:', error);
@@ -124,7 +115,18 @@ export default function Home({ initialType }) {
         isFetching = false;
       }
     };
-    
+
+    console.log('Fetching session');
+    checkSession();
+    if (!cancelled) {
+      mainInterval = setInterval(() => {
+        if (!cancelled) {
+          console.log('Polling session');
+          checkSession();
+        }
+      }, 60000) // 每分钟检查一次会话状态
+    }
+
     fetchData();
     
     return () => {
@@ -141,6 +143,44 @@ export default function Home({ initialType }) {
       fetchUserInterests();
     }
   }, [session])
+
+  // 定时轮询获取分数
+  useEffect(() => {
+    let interval;
+    const fetchInterestScores = async () => {
+      try {
+        // 检查用户是否有订阅
+        if (!subscription || subscription.status != "active") {
+          return;
+        }
+
+        // 假设接口返回 { [postId]: score }
+        const params = new URLSearchParams({
+          user_id: session?.user?.id || '',
+          postType: postType || 'front-page'
+        });
+        if (params.get('user_id') == '')
+          return;
+        const cloudflareWorkerUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_WORKER_URL || 'https://hyphn-kv.1633121980.workers.dev';
+        const response = await fetch(`${cloudflareWorkerUrl}/api/user-interest-score?${params}`);
+        const data = await response.json();
+        if (response.ok) {
+          setInterestScores(data);
+        }
+      } catch (error) {
+        console.error('Error fetching interest scores:', error);
+      }
+    };
+
+    // 只在用户有订阅时启动轮询
+    if (subscription && subscription.status == "active") {
+      fetchInterestScores();
+      interval = setInterval(fetchInterestScores, 60000); // 每分钟轮询
+    }
+
+    return () => clearInterval(interval);
+  }, [session?.user?.id, subscription]); // 添加 subscription 作为依赖
+
 
   async function checkSession() {
     try {
@@ -162,7 +202,7 @@ export default function Home({ initialType }) {
     setLoading(true)
     try {
       // 首先尝试调用Cloudflare Worker接口
-      const cloudflareWorkerUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_WORKER_URL;
+      const cloudflareWorkerUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_WORKER_URL || 'https://hyphn-kv.1633121980.workers.dev';
       const response = await fetch(`${cloudflareWorkerUrl}/api/posts?type=${type}`)
       const data = await response.json()
       //console.Console.log('Fetched posts:', data)
@@ -206,7 +246,7 @@ export default function Home({ initialType }) {
     async function fetchUserInterests() {
     try {
       // 首先尝试调用Cloudflare Worker接口
-      const cloudflareWorkerUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_WORKER_URL;
+      const cloudflareWorkerUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_WORKER_URL || 'https://hyphn-kv.1633121980.workers.dev';
       console.log('Fetching user interests from Cloudflare Worker:', cloudflareWorkerUrl);
       const cloudflareResponse = await fetch(`${cloudflareWorkerUrl}/api/user-interests?user_id=${session?.user?.id}`);
       
@@ -252,7 +292,7 @@ export default function Home({ initialType }) {
   
     try {
       // 首先尝试调用Cloudflare Worker接口
-      const cloudflareWorkerUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_WORKER_URL;
+      const cloudflareWorkerUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_WORKER_URL || 'https://hyphn-kv.1633121980.workers.dev';
       console.log('Fetching user interests from Cloudflare Worker:', cloudflareWorkerUrl);
       const cloudflareResponse = await fetch(`${cloudflareWorkerUrl}/api/user-interests`, {
         method: 'POST',
@@ -663,174 +703,181 @@ export default function Home({ initialType }) {
               {posts
                 .slice((currentPage - 1) * postsPerPage, currentPage * postsPerPage)
                 .map((post, index) => (
-                <li key={post.id} className="py-2 px-1 hover:bg-gray-50">
-                  <div className="flex items-baseline">
-                    <span className="text-gray-500 mr-1">{(currentPage - 1) * postsPerPage + index + 1}.</span>
-                      <span className="text-xs bg-orange-100 text-orange-800 px-1 rounded mr-1">HN</span>
-                    <div className="flex-1">
-                      <div className="flex flex-wrap items-baseline">
-                        <a 
-                          href={post.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-black hover:underline mr-1"
-                        >
-                          {post.title}
-                        </a>
+                  <li key={post.id} className="py-2 px-1 hover:bg-gray-50">
+                    <div className="flex items-baseline">
+                        <span className="text-gray-500 mr-1">{(currentPage - 1) * postsPerPage + index + 1}.</span>
+                        <div className="flex flex-col h-full mr-1">
+                          <span className="text-xs  w-8 h-5 bg-orange-100 text-orange-800 px-1 rounded mt-1 flex items-center justify-center">HN</span>
+                          <div className="flex-1" />
+                          <span className="mt-auto mb-auto w-8 h-8 flex items-center justify-center text-sm bg-purple-50 text-purple-700 rounded-full font-bold">
+                            {interestScores[post.id] ?? 0}%
+                          </span>
+                          <div className="flex-1" />
+                        </div>
+                        <div className="flex-1">
+                        <div className="flex flex-wrap items-baseline">
+                          <a 
+                            href={post.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-black hover:underline mr-1"
+                          >
+                            {post.title}
+                          </a>
 
-                        {/* Article type tag displayed after title */}
+                          {/* Article type tag displayed after title */}
+                          {post.content_summary && (() => {
+                            const summaryData = parseSummaryContent(post.content_summary);
+                            if (summaryData && summaryData.type && summaryData.type !== 'Unable to get article type') {
+                              return (
+                                <span className="text-xs bg-blue-100 text-blue-800 px-1 rounded ml-1">
+                                  {summaryData.type}
+                                </span>
+                              );
+                            }
+                          })()}
+                          {post.url && (
+                            <span className="text-gray-500 text-xs ml-1">
+                              ({new URL(post.url).hostname.replace('www.', '')})
+                            </span>
+                          )}
+                          {/* Hacker News original post link positioned at top-right of title */}
+                          {post.hn_id && (
+                            <a 
+                              href={`https://news.ycombinator.com/item?id=${post.hn_id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="hover:underline ml-2 text-orange-600 font-medium text-xs"
+                            >
+                              view on HN
+                            </a>
+                          )}
+                        </div>
+                        
+                        {/* Modify keyword display section, limit to maximum 12 keywords */}
                         {post.content_summary && (() => {
                           const summaryData = parseSummaryContent(post.content_summary);
-                          if (summaryData && summaryData.type && summaryData.type !== 'Unable to get article type') {
+                          if (summaryData && summaryData.keywords && summaryData.keywords !== 'Unable to get keywords') {
+                            // 分割关键词并渲染为 badge
+                            const keywordsArr = summaryData.keywords.split(',').slice(0, 12);
                             return (
-                              <span className="text-xs bg-blue-100 text-blue-800 px-1 rounded ml-1">
-                                {summaryData.type}
-                              </span>
+                              <div className="text-xs text-gray-600 mt-1 flex flex-wrap gap-1">
+                                {keywordsArr.map((kw, idx) => (
+                                  <span key={idx} className="bg-gray-200 text-gray-800 px-2 py-0.5 rounded">{kw.trim()}</span>
+                                ))}
+                              </div>
                             );
                           }
                         })()}
-                        {post.url && (
-                          <span className="text-gray-500 text-xs ml-1">
-                            ({new URL(post.url).hostname.replace('www.', '')})
-                          </span>
-                        )}
-                        {/* Hacker News original post link positioned at top-right of title */}
-                        {post.hn_id && (
-                          <a 
-                            href={`https://news.ycombinator.com/item?id=${post.hn_id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="hover:underline ml-2 text-orange-600 font-medium text-xs"
-                          >
-                            view on HN
-                          </a>
-                        )}
-                      </div>
-                      
-                      {/* Modify keyword display section, limit to maximum 12 keywords */}
-                      {post.content_summary && (() => {
-                        const summaryData = parseSummaryContent(post.content_summary);
-                        if (summaryData && summaryData.keywords && summaryData.keywords !== 'Unable to get keywords') {
-                          // 分割关键词并渲染为 badge
-                          const keywordsArr = summaryData.keywords.split(',').slice(0, 12);
-                          return (
-                            <div className="text-xs text-gray-600 mt-1 flex flex-wrap gap-1">
-                              {keywordsArr.map((kw, idx) => (
-                                <span key={idx} className="bg-gray-200 text-gray-800 px-2 py-0.5 rounded">{kw.trim()}</span>
-                              ))}
-                            </div>
-                          );
-                        }
-                      })()}
-                      <div className="text-xs text-gray-500 mt-1 flex justify-between items-center">
-                        <div>
-                          {post.points || 0} points by {post.user?.username || 'anonymous'} {timeago.format(new Date(post.created_at))} | 
-                          <button 
-                            onClick={() => toggleComments(post.hn_id)}
-                            className="hover:underline ml-1"
-                          >
-                            {post.comments_count || 0} comments
-                            {post.comments_count > 0 && (
-                              <span className="ml-1">({expandedComments[post.hn_id] ? 'collapse' : 'show top3 comments'})</span>
-                            )}
-                          </button>
-                          {post.text && (
-                            <button
-                              onClick={() => toggleText(post.hn_id)}
-                              className={`hover:underline ml-2 ${post.text ? 'text-green-600 font-medium' : 'text-gray-500'}`}
-                            >
-                              {expandedTexts[post.hn_id] ? 'hide post text' : 'show post text'}
-                            </button>
-                          )}
-                          {/* Summary expand/collapse button */}
-                          {post.content_summary && (
+                        <div className="text-xs text-gray-500 mt-1 flex justify-between items-center">
+                          <div>
+                            {post.points || 0} points by {post.user?.username || 'anonymous'} {timeago.format(new Date(post.created_at))} | 
                             <button 
-                              onClick={() => toggleSummary(post.hn_id)}
-                              className={`hover:underline ml-2 ${post.content_summary ? 'text-blue-600 font-medium' : 'text-gray-500'}`}
+                              onClick={() => toggleComments(post.hn_id)}
+                              className="hover:underline ml-1"
                             >
-                              {expandedSummaries[post.hn_id] ? 'hide summary' : 'show summary'}
+                              {post.comments_count || 0} comments
+                              {post.comments_count > 0 && (
+                                <span className="ml-1">({expandedComments[post.hn_id] ? 'collapse' : 'show top3 comments'})</span>
+                              )}
                             </button>
+                            {post.text && (
+                              <button
+                                onClick={() => toggleText(post.hn_id)}
+                                className={`hover:underline ml-2 ${post.text ? 'text-green-600 font-medium' : 'text-gray-500'}`}
+                              >
+                                {expandedTexts[post.hn_id] ? 'hide post text' : 'show post text'}
+                              </button>
+                            )}
+                            {/* Summary expand/collapse button */}
+                            {post.content_summary && (
+                              <button 
+                                onClick={() => toggleSummary(post.hn_id)}
+                                className={`hover:underline ml-2 ${post.content_summary ? 'text-blue-600 font-medium' : 'text-gray-500'}`}
+                              >
+                                {expandedSummaries[post.hn_id] ? 'hide summary' : 'show summary'}
+                              </button>
+                            )}
+                          </div>
+                          {(
+                            <div className="ml-auto">
+                              <FacebookReaction 
+                                postId={post.id}
+                                currentReaction={session ? userInterests[post.id] : null}
+                                onSelect={(postId, reaction) => {
+                                  if (!session) {
+                                    setIsLoginOpen(true);
+                                  } else {
+                                    handleInterest(postId, reaction);
+                                  }
+                                }}
+                              />
+                            </div>
                           )}
                         </div>
-                        {(
-                          <div className="ml-auto">
-                            <FacebookReaction 
-                              postId={post.id}
-                              currentReaction={session ? userInterests[post.id] : null}
-                              onSelect={(postId, reaction) => {
-                                if (!session) {
-                                  setIsLoginOpen(true);
-                                } else {
-                                  handleInterest(postId, reaction);
-                                }
-                              }}
+                      </div>
+                    </div>
+
+                    {/* Summary and keywords show/hide logic */}
+                    {expandedSummaries[post.hn_id] && post.content_summary && (
+                      <div className="mt-2 ml-6 p-3 bg-blue-50 rounded border border-blue-200">
+                        <div className="text-xs font-medium text-blue-800 mb-1">Article Summary:</div>
+                        <div className="text-xs text-gray-700">
+                          {(() => {
+                            const summaryData = parseSummaryContent(post.content_summary);
+                            if (!summaryData) return 'No summary content available';
+                            
+                            // Only display summary content, not keywords
+                            if (summaryData.content && summaryData.content !== 'Unable to generate content summary') {
+                              return <div>{summaryData.content}</div>;
+                            }
+                            
+                            return 'No summary content available';
+                          })()}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Comments show/hide logic */}
+                    {expandedComments[post.hn_id] && (
+                      <div className="mt-2 ml-6 space-y-2 border-l-2 pl-2 border-orange-200">
+                        <div className="text-xs font-medium text-orange-800 mb-1">Top 3 Comments:</div>
+                        {/* Display live comments or preloaded comments */}
+                        {(liveComments[post.hn_id] || post.comments || []).map(comment => (
+                          <div key={comment.id} className="text-xs text-gray-600">
+                            <div className="font-medium text-gray-800">
+                              {comment.user_id || 'anonymous'} · 
+                              {timeago.format(new Date(comment.created_at))}
+                            </div>
+                            <div 
+                              className="mt-1 whitespace-pre-wrap break-words prose prose-sm max-w-none"
+                              dangerouslySetInnerHTML={{ __html: formatCommentText(comment.text) }}
                             />
                           </div>
+                        ))}
+                        
+                        {/* If live comments haven't been fetched yet and preloaded comments are empty, show loading state */}
+                        {expandedComments[post.hn_id] && 
+                         !liveComments[post.hn_id] && 
+                         (!post.comments || post.comments.length === 0) && (
+                          <div className="text-xs text-gray-500">
+                            Loading comments...
+                          </div>
                         )}
                       </div>
-                    </div>
-                  </div>
+                    )}
 
-                  {/* Summary and keywords show/hide logic */}
-                  {expandedSummaries[post.hn_id] && post.content_summary && (
-                    <div className="mt-2 ml-6 p-3 bg-blue-50 rounded border border-blue-200">
-                      <div className="text-xs font-medium text-blue-800 mb-1">Article Summary:</div>
-                      <div className="text-xs text-gray-700">
-                        {(() => {
-                          const summaryData = parseSummaryContent(post.content_summary);
-                          if (!summaryData) return 'No summary content available';
-                          
-                          // Only display summary content, not keywords
-                          if (summaryData.content && summaryData.content !== 'Unable to generate content summary') {
-                            return <div>{summaryData.content}</div>;
-                          }
-                          
-                          return 'No summary content available';
-                        })()}
+                    {/* Post text show/hide logic */}
+                    {expandedTexts[post.hn_id] && post.text && (
+                      <div className="mt-2 ml-6 p-3 bg-green-50 rounded border border-green-200">
+                        <div className="text-xs font-medium text-green-800 mb-1">Post Text:</div>
+                        <div 
+                          className="text-xs text-gray-700 whitespace-pre-wrap break-words prose prose-sm max-w-none"
+                          dangerouslySetInnerHTML={{ __html: formatCommentText(post.text) }}
+                        />
                       </div>
-                    </div>
-                  )}
-
-                  {/* Comments show/hide logic */}
-                  {expandedComments[post.hn_id] && (
-                    <div className="mt-2 ml-6 space-y-2 border-l-2 pl-2 border-orange-200">
-                      <div className="text-xs font-medium text-orange-800 mb-1">Top 3 Comments:</div>
-                      {/* Display live comments or preloaded comments */}
-                      {(liveComments[post.hn_id] || post.comments || []).map(comment => (
-                        <div key={comment.id} className="text-xs text-gray-600">
-                          <div className="font-medium text-gray-800">
-                            {comment.user_id || 'anonymous'} · 
-                            {timeago.format(new Date(comment.created_at))}
-                          </div>
-                          <div 
-                            className="mt-1 whitespace-pre-wrap break-words prose prose-sm max-w-none"
-                            dangerouslySetInnerHTML={{ __html: formatCommentText(comment.text) }}
-                          />
-                        </div>
-                      ))}
-                      
-                      {/* If live comments haven't been fetched yet and preloaded comments are empty, show loading state */}
-                      {expandedComments[post.hn_id] && 
-                       !liveComments[post.hn_id] && 
-                       (!post.comments || post.comments.length === 0) && (
-                        <div className="text-xs text-gray-500">
-                          Loading comments...
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Post text show/hide logic */}
-                  {expandedTexts[post.hn_id] && post.text && (
-                    <div className="mt-2 ml-6 p-3 bg-green-50 rounded border border-green-200">
-                      <div className="text-xs font-medium text-green-800 mb-1">Post Text:</div>
-                      <div 
-                        className="text-xs text-gray-700 whitespace-pre-wrap break-words prose prose-sm max-w-none"
-                        dangerouslySetInnerHTML={{ __html: formatCommentText(post.text) }}
-                      />
-                    </div>
-                  )}
-                </li>
+                    )}
+                  </li>
               ))}
             </ol>
             

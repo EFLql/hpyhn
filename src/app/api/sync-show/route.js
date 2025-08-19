@@ -9,7 +9,7 @@ export async function GET(request) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
   try {
-    const result = await syncHnPosts('show', 100)
+    const result = await syncHnPosts('show', 60)
     return Response.json({ 
       success: true, 
       type: 'show',
