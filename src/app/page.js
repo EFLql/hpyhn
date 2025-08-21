@@ -30,6 +30,8 @@ export default function Home({ initialType }) {
   const [expandedTexts, setExpandedTexts] = useState({}); // 记录哪些文章的正文是展开的
   const [subscription, setSubscription] = useState(null)
   const [interestScores, setInterestScores] = useState({});
+  const [originalPosts, setOriginalPosts] = useState([]); // 新增：保存原始帖子顺序
+  const [isSortedByInterest, setIsSortedByInterest] = useState(false); // 新增：跟踪排序状态
 
   useEffect(() => {
   const fetchSubscription = async () => {
@@ -181,7 +183,6 @@ export default function Home({ initialType }) {
     return () => clearInterval(interval);
   }, [session?.user?.id, subscription]); // 添加 subscription 作为依赖
 
-
   async function checkSession() {
     try {
       const response = await fetch('/api/auth/session')
@@ -198,6 +199,33 @@ export default function Home({ initialType }) {
     }
   }
 
+  // -------------------------------------------------
+  // Modified helper: sort posts by interest scores with toggle functionality
+  // -------------------------------------------------
+  const sortPostsByInterest = () => {
+    if (subscription && subscription.status === "active") {
+      if (isSortedByInterest) {
+        // 恢复原始顺序
+        setPosts(originalPosts);
+        setIsSortedByInterest(false);
+      } else {
+        // 按兴趣排序
+        const sorted = [...posts].sort((a, b) => {
+          const scoreA = interestScores[a.id] || 0;
+          const scoreB = interestScores[b.id] || 0;
+          if (scoreA === scoreB) {
+            return (b.points || 0) - (a.points || 0);
+          }
+          return scoreB - scoreA;
+        });
+        setPosts(sorted);
+        setIsSortedByInterest(true);
+      }
+    } else {
+      console.warn('Sorting by interest requires an active subscription.');
+    }
+  };
+
   async function fetchPosts(type = 'front_page') {
     setLoading(true)
     try {
@@ -207,7 +235,10 @@ export default function Home({ initialType }) {
       const data = await response.json()
       //console.Console.log('Fetched posts:', data)
       if (response.ok) {
-        setPosts(data)
+        // 保存原始数据并重置排序状态
+        setOriginalPosts(data);
+        setPosts(data);
+        setIsSortedByInterest(false);
       } else {
         // 如果Cloudflare Worker接口返回错误，尝试回退到后端接口
         console.warn('Cloudflare Worker API failed, falling back to backend API')
@@ -215,7 +246,10 @@ export default function Home({ initialType }) {
         const fallbackData = await fallbackResponse.json()
 
         if (fallbackResponse.ok) {
-          setPosts(fallbackData)
+          // 保存原始数据并重置排序状态
+          setOriginalPosts(fallbackData);
+          setPosts(fallbackData);
+          setIsSortedByInterest(false);
         } else {
           console.error('Failed to fetch posts from backend:', fallbackData.error)
           setPosts([])
@@ -229,7 +263,10 @@ export default function Home({ initialType }) {
         const fallbackData = await fallbackResponse.json()
 
         if (fallbackResponse.ok) {
-          setPosts(fallbackData)
+          // 保存原始数据并重置排序状态
+          setOriginalPosts(fallbackData);
+          setPosts(fallbackData);
+          setIsSortedByInterest(false);
         } else {
           console.error('Failed to fetch posts from backend:', fallbackData.error)
           setPosts([])
@@ -493,14 +530,14 @@ export default function Home({ initialType }) {
     useEffect(() => {
     // 只有在首页时才定时刷新
     if (pathname === '/') {
-      console.log('Setting up scheduled fetch for news');
+      console.log('Setting up scheduled fetch for front-page');
       const interval = setInterval(() => {
-        console.log('Scheduled fetchPosts for news');
-        fetchPosts('news')
+        console.log('Scheduled fetchPosts for front-page');
+        fetchPosts('front-page')
       }, 20 * 60 * 1000)
       
       return () => {
-        console.log('Clearing scheduled fetch for news');
+        console.log('Clearing scheduled fetch for front-page');
         clearInterval(interval)
       }
     }
@@ -598,95 +635,81 @@ export default function Home({ initialType }) {
   return (
     <div className="max-w-4xl mx-auto px-4 py-2 bg-orange-50 relative min-h-screen">
 
-      <header className="bg-orange-500 py-2 px-4 flex justify-between items-center">
-  <div className="flex items-center">
-    <Link href="/" className="font-bold text-white mr-4 hover:underline flex items-center">
-      HPYHN
-    </Link>
-    <nav className="flex space-x-4 text-sm">
-      <Link 
-        href="/newest" 
-        className="text-white hover:underline"
-        onClick={() => {
-          setCurrentPage(1);
-          // 不再直接调用fetchPosts，让useEffect处理
-        }}
-      >
-        new
-      </Link>
-      <Link 
-        href="/ask" 
-        className="text-white hover:underline"
-        onClick={() => {
-          setCurrentPage(1);
-          // 不再直接调用fetchPosts，让useEffect处理
-        }}
-      >
-        ask
-      </Link>
-      <Link 
-        href="/show" 
-        className="text-white hover:underline"
-        onClick={() => {
-          setCurrentPage(1);
-          // 不再直接调用fetchPosts，让useEffect处理
-        }}
-      >
-        show
-      </Link>
-    </nav>
-  </div>
-  {!session && (
-    <div className="flex space-x-2">
-      <button 
-        onClick={() => setIsLoginOpen(true)}
-        className="text-white hover:underline text-sm bg-orange-600 px-3 py-1 rounded"
-      >
-        login
-      </button>
-    </div>
-  )}
-  {session && (
-    <div className="relative flex items-center">
-      <button 
-        onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-        className="text-white hover:text-gray-200 text-sm flex items-center ml-2 relative z-30"
-      >
-        {session.user.email}
-        <svg className="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
-        </svg>
-      </button>
-      
-      {isUserMenuOpen && (
-        <>
-          {/* 点击空白处关闭菜单的遮罩层 */}
-          <div 
-            className="fixed inset-0 z-20 bg-black bg-opacity-10"
-            onClick={() => setIsUserMenuOpen(false)}
-          />
-          {/* 菜单内容 */}
-          <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-md shadow-lg py-1 z-30">
-            <Link 
-              href="/account" 
-              className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-              onClick={() => setIsUserMenuOpen(false)}
-            >
-              Account Settings
+      {/* ====================  Header ==================== */}
+      <header className="bg-orange-500 py-2 px-4 flex flex-col md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center justify-between">
+          <Link href="/" className="font-bold text-white mr-4 hover:underline flex items-center">
+            HPYHN
+          </Link>
+
+          {/* Navigation */}
+          <nav className="flex space-x-4 text-sm">
+            <Link href="/newest" className="text-white hover:underline"
+              onClick={() => setCurrentPage(1)}>
+              new
             </Link>
+            <Link href="/ask" className="text-white hover:underline"
+              onClick={() => setCurrentPage(1)}>
+              ask
+            </Link>
+            <Link href="/show" className="text-white hover:underline"
+              onClick={() => setCurrentPage(1)}>
+              show
+            </Link>
+          </nav>
+        </div>
+        {/* User / login area */}
+        {!session ? (
+          <div className="flex space-x-2 mt-2 md:mt-0">
             <button
-              onClick={handleLogout}
-              className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+              onClick={() => setIsLoginOpen(true)}
+              className="text-white hover:underline text-sm bg-orange-600 px-3 py-1 rounded"
             >
-              Logout
+              login
             </button>
           </div>
-        </>
-      )}
-    </div>
-  )}
-</header>
-      
+        ) : (
+          <div className="relative flex items-center mt-2 md:mt-0">
+            <button
+              onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+              className="text-white hover:text-gray-200 text-sm flex items-center ml-2 relative z-30"
+            >
+              {session.user.email}
+              <svg className="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
+            </button>
+            
+            {isUserMenuOpen && (
+              <>
+                {/* 点击空白处关闭菜单的遮罩层 */}
+                <div 
+                  className="fixed inset-0 z-20 bg-black bg-opacity-10"
+                  onClick={() => setIsUserMenuOpen(false)}
+                />
+                {/* 菜单内容 */}
+                <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-md shadow-lg py-1 z-30">
+                  <Link 
+                    href="/account" 
+                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    onClick={() => setIsUserMenuOpen(false)}
+                  >
+                    Account Settings
+                  </Link>
+                  <button
+                    onClick={handleLogout}
+                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  >
+                    Logout
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </header>
+
+      {/* ====================  Main content ==================== */}
       <main className="bg-white">
         {loading ? (
           <div className="flex justify-center p-8">
@@ -709,9 +732,29 @@ export default function Home({ initialType }) {
                         <div className="flex flex-col h-full mr-1">
                           <span className="text-xs  w-8 h-5 bg-orange-100 text-orange-800 px-1 rounded mt-1 flex items-center justify-center">HN</span>
                           <div className="flex-1" />
-                          <span className="mt-auto mb-auto w-8 h-8 flex items-center justify-center text-sm bg-purple-50 text-purple-700 rounded-full font-bold">
-                            {interestScores[post.id] ?? 0}%
-                          </span>
+                          <div className="flex items-center">
+                            <span className="mt-auto mb-auto w-8 h-8 flex items-center justify-center text-sm bg-purple-50 text-purple-700 rounded-full font-bold">
+                              {interestScores[post.id] ?? 0}%
+                            
+                            {/* Only show sort icon next to first post's interest score */}
+                            {index === 0 && subscription?.status === 'active' && (
+                              <div className="relative group ml-1">
+                                <button
+                                  onClick={sortPostsByInterest}
+                                  className="text-gray-500 hover:text-orange-500 focus:outline-none"
+                                  aria-label="Sort by Interest"
+                                >
+                                  <svg className="w-7 h-7" fill="none" stroke="red" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10l4-4 4 4M8 14l4 4 4-4"></path>
+                                  </svg>
+                                </button>
+                                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                                  Sort by your interests
+                                </div>
+                              </div>
+                            )}
+                            </span>
+                          </div>
                           <div className="flex-1" />
                         </div>
                         <div className="flex-1">
@@ -881,8 +924,9 @@ export default function Home({ initialType }) {
               ))}
             </ol>
             
-            {/* Pagination controls */}
+            {/* ====================  Pagination (bottom) ==================== */}
             <div className="flex justify-center items-center py-4 space-x-2">
+              {/* Pagination controls only – the manual sort button has been removed from here */}
               <button
                 onClick={() => {
                   setCurrentPage(prev => Math.max(prev - 1, 1));
@@ -890,7 +934,7 @@ export default function Home({ initialType }) {
                 }}
                 disabled={currentPage === 1}
                 className={`px-3 py-1 rounded ${
-                  currentPage === 1 
+                  currentPage === 1
                     ? 'bg-gray-200 text-gray-500 cursor-not-allowed' 
                     : 'bg-orange-500 text-white hover:bg-orange-600'
                 }`}
@@ -910,7 +954,7 @@ export default function Home({ initialType }) {
                 disabled={currentPage === Math.ceil(posts.length / postsPerPage)}
                 className={`px-3 py-1 rounded ${
                   currentPage === Math.ceil(posts.length / postsPerPage)
-                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed' 
+                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
                     : 'bg-orange-500 text-white hover:bg-orange-600'
                 }`}
               >

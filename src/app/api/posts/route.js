@@ -45,6 +45,7 @@ export async function GET(request) {
       .from(tableName)
       .select(`
         created_at,
+        update_time,
         hn_posts (
           id,
           hn_id,
@@ -58,7 +59,7 @@ export async function GET(request) {
           content_summary
         )
       `)
-      .order('created_at', { ascending: false })
+      .order('update_time', { descending: true })
       .limit(parseInt(limit))
     
     if (error) throw error
@@ -72,7 +73,8 @@ export async function GET(request) {
         comments_count: item.hn_posts.descendants,
         text: item.hn_posts.text,
         user: { username: item.hn_posts.user_id || 'anonymous' },
-        comments: item.hn_posts.comments || []
+        comments: item.hn_posts.comments || [],
+        update_time: item.update_time
       }));
 
     if (type === 'ask') {
@@ -80,7 +82,7 @@ export async function GET(request) {
     } else if (type === 'show') {
       formattedHnPosts.sort((a, b) => b.points - a.points);
     } else {
-      formattedHnPosts.sort((a, b) => a.id - b.id);
+      formattedHnPosts.sort((a, b) => a.update_time - b.update_time);
     }
     
     return new Response(

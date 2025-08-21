@@ -112,7 +112,7 @@ async function invokeLambda(payload) {
   const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
 
   // 你的 API Gateway endpoint
-  const endpoint = 'https://b9zo4r44jc.execute-api.us-east-1.amazonaws.com/summary_feature_gen';
+  const endpoint = 'https://b9zo4r44jc.execute-api.us-east-1.amazonaws.com/summary_feature_gen_asyn';
 
   // 解析 hostname 和 path
   const url = new URL(endpoint);
@@ -156,7 +156,7 @@ async function invokeLambda(payload) {
     //throw new Error(`API Gateway 调用失败: ${res.status} ${res.statusText}`);
   }
   else  {
-    //const text = await res.text();
+    const text = await res.text();
     console.log('API Gateway 调用成功:', text);
   }
 
@@ -215,48 +215,42 @@ export async function syncHnPosts(type = 'front_page', limit = 200) {
     }
 
     // 准备分类表的批量插入数据
-    const typePostsToInsert = postsToInsert.map(post => ({
-      post_id: post.hn_id
+    const now = Date.now();                     // 基准时间
+    const typePostsToInsert = postsToInsert.map((post, idx) => ({
+      post_id: post.hn_id,
+      // 为每条记录加上不同的毫秒数，确保时间唯一
+      update_time: new Date(now + idx).toISOString()
     }));
 
-    // 批量插入到对应的分类表
+    // ------------------------------------------------------------
+    // 2️⃣ 批量 upsert 到对应的分类表（一次写入，提高性能）
+    // ------------------------------------------------------------
     if (typePostsToInsert.length > 0) {
-      // Replace batch upsert with sequential insertion to preserve order
-      for (const typePost of typePostsToInsert) {
-        let error;
-        switch(type) {
+      try {
+        switch (type) {
           case 'front_page':
-            ({ error } = await supabase
+            await supabase
               .from('hn_front_page_posts')
-              .upsert(typePost, {
-                onConflict: 'post_id'
-              }));
+              .upsert(typePostsToInsert, { onConflict: 'post_id' });
             break;
           case 'news':
-            ({ error } = await supabase
+            await supabase
               .from('hn_news_posts')
-              .upsert(typePost, {
-                onConflict: 'post_id'
-              }));
+              .upsert(typePostsToInsert, { onConflict: 'post_id' });
             break;
           case 'ask':
-            ({ error } = await supabase
+            await supabase
               .from('hn_ask_posts')
-              .upsert(typePost, {
-                onConflict: 'post_id'
-              }));
+              .upsert(typePostsToInsert, { onConflict: 'post_id' });
             break;
           case 'show':
-            ({ error } = await supabase
+            await supabase
               .from('hn_show_posts')
-              .upsert(typePost, {
-                onConflict: 'post_id'
-              }));
+              .upsert(typePostsToInsert, { onConflict: 'post_id' });
             break;
         }
-        if (error) {
-          console.error(`分类表同步失败 ${typePost.post_id}:`, error);
-        }
+      } catch (error) {
+        console.error(`分类表批量同步失败 (${type}):`, error);
       }
     }
 
