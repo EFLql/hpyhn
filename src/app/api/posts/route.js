@@ -59,14 +59,14 @@ export async function GET(request) {
           content_summary
         )
       `)
-      .order('update_time', { descending: true })
+      .order('update_time', { ascending: false, nullsFirst: false })
       .limit(parseInt(limit))
     
     if (error) throw error
     
     // 过滤掉 hn_posts 为 null 的记录并格式化数据
     let formattedHnPosts = data
-      .filter(item => item.hn_posts !== null)
+      .filter(item => item.hn_posts !== null && item.update_time !== null)
       .map(item => ({
         ...item.hn_posts,
         source: 'hn',
@@ -76,13 +76,17 @@ export async function GET(request) {
         comments: item.hn_posts.comments || [],
         update_time: item.update_time
       }));
-
+    
     if (type === 'ask') {
       formattedHnPosts.sort((a, b) => b.comments_count - a.comments_count);
     } else if (type === 'show') {
       formattedHnPosts.sort((a, b) => b.points - a.points);
     } else {
-      formattedHnPosts.sort((a, b) => a.update_time - b.update_time);
+      formattedHnPosts.sort((a, b) => {
+        const timeA = new Date(a.update_time).getTime();
+        const timeB = new Date(b.update_time).getTime();
+        return timeA - timeB;
+      });
     }
     
     return new Response(

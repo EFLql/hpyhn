@@ -56,21 +56,13 @@ export default function Home({ initialType }) {
 
   // 在组件顶部添加这个函数
   function getPostType(initialType, pathname) {
-    let type = initialType || (pathname === '/news' ? 'news' : 'front-page')
-
-    // Handle tab navigation
-    if (pathname === '/newest') {
-      type = 'news'
-    } else if (pathname === '/ask') {
-      type = 'ask'
-    } else if (pathname === '/show') {
-      type = 'show'
-    } else if (pathname === '/') {
-      type = 'front-page'
-    }
-    
-    return type;
-  }
+    if (initialType) return initialType;
+    if (pathname === '/newest') return 'newest';
+    if (pathname === '/ask') return 'ask';
+    if (pathname === '/show') return 'show';
+    if (pathname === '/favorites') return 'favorites'; // Add this line
+    return 'front-page';
+}
    const postType = useMemo(() => {
     return getPostType(initialType, pathname);
   }, [initialType, pathname]);
@@ -101,9 +93,12 @@ export default function Home({ initialType }) {
         isFetching = false;
         return;
       }
-      try {
+      try {    
         console.log('Fetching posts for type:', postType);
-        await fetchPosts(postType);
+        let sessionCheck;
+        if (postType === 'favorites')
+          sessionCheck = await checkSession();
+        await fetchPosts(postType, sessionCheck);
         if (cancelled) {
           console.log('Cancelled after fetchPosts');
           isFetching = false;
@@ -128,7 +123,6 @@ export default function Home({ initialType }) {
         }
       }, 60000) // 每分钟检查一次会话状态
     }
-
     fetchData();
     
     return () => {
@@ -138,7 +132,7 @@ export default function Home({ initialType }) {
         clearInterval(mainInterval);
       }
     }
-  }, [postType]) // 只依赖postType，确保只在postType改变时触发
+  }, [postType, session]) // 只依赖postType，确保只在postType改变时触发
 
   useEffect(() => {
     if (session?.user?.id) {
@@ -151,6 +145,10 @@ export default function Home({ initialType }) {
     let interval;
     const fetchInterestScores = async () => {
       try {
+        // 检查当前分数列表是否为空，非空则跳过API调用
+        if (Object.keys(interestScores).length > 0) {
+          return;
+        }
         // 检查用户是否有订阅
         if (!subscription || subscription.status != "active") {
           return;
@@ -161,7 +159,7 @@ export default function Home({ initialType }) {
           user_id: session?.user?.id || '',
           postType: postType || 'front-page'
         });
-        if (params.get('user_id') == '')
+        if (params.get('user_id') == '' || params.get('postType') == 'favorites')
           return;
         const cloudflareWorkerUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_WORKER_URL || 'https://hyphn-kv.1633121980.workers.dev';
         const response = await fetch(`${cloudflareWorkerUrl}/api/user-interest-score?${params}`);
@@ -190,14 +188,18 @@ export default function Home({ initialType }) {
       
       if (response.ok) {
         setSession(data.session)
+        return data.session; // Return session data
       } else {
         setSession(null)
+        return null;
       }
     } catch (error) {
       console.error('Error checking session:', error)
       setSession(null)
+      return null;
     }
   }
+
 
   // -------------------------------------------------
   // Modified helper: sort posts by interest scores with toggle functionality
@@ -226,12 +228,20 @@ export default function Home({ initialType }) {
     }
   };
 
-  async function fetchPosts(type = 'front_page') {
+  async function fetchPosts(type = 'front-page', sessionCheck = null) {
     setLoading(true)
     try {
+      let user_id = sessionCheck?.user?.id || '';
+      if (type == 'favorites' && user_id == '') {
+        // 用户未登录，无法获取收藏
+        setPosts([]);
+        setOriginalPosts([]);
+        setIsSortedByInterest(false);
+        return;
+      }
       // 首先尝试调用Cloudflare Worker接口
       const cloudflareWorkerUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_WORKER_URL || 'https://hyphn-kv.1633121980.workers.dev';
-      const response = await fetch(`${cloudflareWorkerUrl}/api/posts?type=${type}`)
+      const response = await fetch(`${cloudflareWorkerUrl}/api/posts?type=${type}&user_id=${user_id}`)
       const data = await response.json()
       //console.Console.log('Fetched posts:', data)
       if (response.ok) {
@@ -242,7 +252,7 @@ export default function Home({ initialType }) {
       } else {
         // 如果Cloudflare Worker接口返回错误，尝试回退到后端接口
         console.warn('Cloudflare Worker API failed, falling back to backend API')
-        const fallbackResponse = await fetch(`/api/posts?type=${type}`)
+        const fallbackResponse = await fetch(`/api/posts?type=${type}&user_id=${user_id}`)
         const fallbackData = await fallbackResponse.json()
 
         if (fallbackResponse.ok) {
@@ -259,7 +269,7 @@ export default function Home({ initialType }) {
       // 如果Cloudflare Worker接口网络错误，尝试回退到后端接口
       console.warn('Cloudflare Worker API failed, falling back to backend API:', error)
       try {
-        const fallbackResponse = await fetch(`/api/posts?type=${type}`)
+        const fallbackResponse = await fetch(`/api/posts?type=${type}&user_id=${user_id}`)
         const fallbackData = await fallbackResponse.json()
 
         if (fallbackResponse.ok) {
@@ -438,6 +448,7 @@ export default function Home({ initialType }) {
     }
   }
 
+  /*
   const handleManualSync = async () => {
     setSyncLoading(true)
     setSyncMessage(null)
@@ -459,6 +470,7 @@ export default function Home({ initialType }) {
       setTimeout(() => setSyncMessage(null), 3000)
     }
   }
+  */
 
   const toggleText = (postId) => {
     setExpandedTexts(prev => ({
@@ -526,22 +538,6 @@ export default function Home({ initialType }) {
     
     return null;
   }
-
-    useEffect(() => {
-    // 只有在首页时才定时刷新
-    if (pathname === '/') {
-      console.log('Setting up scheduled fetch for front-page');
-      const interval = setInterval(() => {
-        console.log('Scheduled fetchPosts for front-page');
-        fetchPosts('front-page')
-      }, 20 * 60 * 1000)
-      
-      return () => {
-        console.log('Clearing scheduled fetch for front-page');
-        clearInterval(interval)
-      }
-    }
-  }, [pathname]) // 只依赖pathname
 
   // 新增实时获取评论的函数 - 优化版本
   const fetchLiveComments = async (postId) => {
@@ -632,81 +628,101 @@ export default function Home({ initialType }) {
     }
   };
 
+  // 获取收藏的帖子
+  const getFavoritePosts = () => {
+    // 这里可以根据用户兴趣过滤帖子
+    // 例如，返回用户标记为喜欢的帖子
+    if (!session) return [];
+    
+    return posts.filter(post => userInterests[post.id] === 'like');
+  };
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-2 bg-orange-50 relative min-h-screen">
 
       {/* ====================  Header ==================== */}
       <header className="bg-orange-500 py-2 px-4 flex flex-col md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center justify-between">
-          <Link href="/" className="font-bold text-white mr-4 hover:underline flex items-center">
-            HPYHN
-          </Link>
-
-          {/* Navigation */}
-          <nav className="flex space-x-4 text-sm">
-            <Link href="/newest" className="text-white hover:underline"
-              onClick={() => setCurrentPage(1)}>
-              new
+        {/* 左侧区域 - Logo 和导航项紧密排列 */}
+        <div className="flex flex-col md:flex-row md:items-center">
+          <div className="flex items-center">
+            <Link href="/" className="font-bold text-white mr-4 hover:underline flex items-center">
+              HPYHN
             </Link>
-            <Link href="/ask" className="text-white hover:underline"
-              onClick={() => setCurrentPage(1)}>
-              ask
-            </Link>
-            <Link href="/show" className="text-white hover:underline"
-              onClick={() => setCurrentPage(1)}>
-              show
-            </Link>
-          </nav>
+          
+            {/* Navigation - 紧靠在 Logo 右边 */}
+            <nav className="flex space-x-4 text-sm">
+              <Link href="/newest" className="text-white hover:underline"
+                onClick={() => setCurrentPage(1)}>
+                new
+              </Link>
+              <Link href="/ask" className="text-white hover:underline"
+                onClick={() => setCurrentPage(1)}>
+                ask
+              </Link>
+              <Link href="/show" className="text-white hover:underline"
+                onClick={() => setCurrentPage(1)}>
+                show
+              </Link>
+              {/* 收藏项 - 在所有设备上可见 */}
+              {session && (
+                <Link href="/favorites" className="text-white hover:underline"
+                  onClick={() => setCurrentPage(1)}>
+                  favorites
+                </Link>
+              )}
+            </nav>
+          </div>
         </div>
-        {/* User / login area */}
-        {!session ? (
-          <div className="flex space-x-2 mt-2 md:mt-0">
+        
+        {/* 右侧用户区域 - 在桌面端显示在右下角 */}
+        <div className="mt-2 md:mt-auto md:ml-auto">
+          {!session ? (
             <button
               onClick={() => setIsLoginOpen(true)}
               className="text-white hover:underline text-sm bg-orange-600 px-3 py-1 rounded"
             >
               login
             </button>
-          </div>
-        ) : (
-          <div className="relative flex items-center mt-2 md:mt-0">
-            <button
-              onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-              className="text-white hover:text-gray-200 text-sm flex items-center ml-2 relative z-30"
-            >
-              {session.user.email}
-              <svg className="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
-              </svg>
-            </button>
-            
-            {isUserMenuOpen && (
-              <>
-                {/* 点击空白处关闭菜单的遮罩层 */}
-                <div 
-                  className="fixed inset-0 z-20 bg-black bg-opacity-10"
-                  onClick={() => setIsUserMenuOpen(false)}
-                />
-                {/* 菜单内容 */}
-                <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-md shadow-lg py-1 z-30">
-                  <Link 
-                    href="/account" 
-                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+          ) : (
+            <div className="relative">
+              <button
+                onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                className="text-white hover:text-gray-200 text-sm flex items-center relative z-30"
+              >
+                {session.user.email}
+                <svg className="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+              </button>
+              
+              {isUserMenuOpen && (
+                <>
+                  {/* 点击空白处关闭菜单的遮罩层 */}
+                  <div 
+                    className="fixed inset-0 z-20 bg-black bg-opacity-10"
                     onClick={() => setIsUserMenuOpen(false)}
-                  >
-                    Account Settings
-                  </Link>
-                  <button
-                    onClick={handleLogout}
-                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                  >
-                    Logout
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
+                  />
+                  {/* 菜单内容 */}
+                  <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-md shadow-lg py-1 z-30">
+                    <Link 
+                      href="/account" 
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      onClick={() => setIsUserMenuOpen(false)}
+                    >
+                      Account Settings
+                    </Link>
+                    <button
+                      onClick={handleLogout}
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    >
+                      Logout
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </header>
 
       {/* ====================  Main content ==================== */}
