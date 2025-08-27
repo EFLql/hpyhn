@@ -12,6 +12,12 @@ export async function POST(request) {
         get(name) {
           return cookieStore.get(name)?.value
         },
+        set(name, value, options) { // Add this line
+          cookieStore.set(name, value, options)
+        },
+        remove(name, options) { // Add this line
+          cookieStore.delete(name, options)
+        },
       },
     }
   )

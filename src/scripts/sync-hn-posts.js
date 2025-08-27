@@ -55,64 +55,12 @@ async function fetchStory(id) {
   }
 }
 
-// 修改后的获取评论函数
-async function fetchComments(postId) {
-  try {
-    // 先获取帖子详情
-    const story = await fetchStory(postId);
-    
-    // 检查是否有评论
-    if (!story.kids || story.kids.length === 0) {
-      console.log(`文章 ${postId} 没有评论`);
-      return;
-    }
-    
-    // 只取前3条评论
-    const top3CommentIds = story.kids.slice(0, 3);
-    
-    console.log(`开始处理文章 ${postId} 的 ${top3CommentIds.length} 条评论...`);
-    
-    for (const commentId of top3CommentIds) {
-      try {
-        // 获取评论详情
-        const comment = await fetchStory(commentId);
-        
-        if (!comment || !comment.text) continue
-
-        // 保存评论
-        const { error } = await supabase
-          .from('hn_comments')
-          .upsert({
-            hn_id: comment.id,
-            post_id: postId,
-            text: comment.text,
-            user_id: comment.by || 'anonymous',
-            parent_id: comment.parent || null,
-            created_at: new Date(comment.time * 1000).toISOString()
-          }, {
-            onConflict: 'hn_id'
-          })
-
-        if (error) console.error(`评论同步失败 ${comment.id}:`, error)
-        
-        await new Promise(resolve => setTimeout(resolve, 200)) // 限速
-      } catch (error) {
-        console.error(`处理评论 ${commentId} 失败:`, error)
-      }
-    }
-  } catch (error) {
-    console.error(`获取文章 ${postId} 的评论失败:`, error)
-  }
-}
 
 // 调用 AWS Lambda 接口 - 使用 IAM 认证
-async function invokeLambda(payload) {
+async function invokeLambda(payload, endpoint) {
   const region = process.env.AWS_REGION;
   const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
   const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
-
-  // 你的 API Gateway endpoint
-  const endpoint = 'https://b9zo4r44jc.execute-api.us-east-1.amazonaws.com/summary_feature_gen_asyn';
 
   // 解析 hostname 和 path
   const url = new URL(endpoint);
@@ -162,7 +110,6 @@ async function invokeLambda(payload) {
 
   return res;
 }
-
 // 同步到 Supabase - 修改为批量写入
 export async function syncHnPosts(type = 'front_page', limit = 200) {
   try {
@@ -256,18 +203,18 @@ export async function syncHnPosts(type = 'front_page', limit = 200) {
 
     const savedPosts = postsToInsert.length;
     console.log(`Hacker News ${type} 数据同步完成，共保存 ${savedPosts} 篇文章`)
-    
-    // 调用 AWS Lambda 接口
-    if (savedPosts > 0) {
+    if (type == 'show') {
       const payload = {
         type: type,
         count: savedPosts,
         timestamp: new Date().toISOString()
       };
-      
-      if (type == 'show') {
-        await invokeLambda(payload);
-      }
+      // 你的 API Gateway endpoint summary and features extraction
+      let endpoint = 'https://b9zo4r44jc.execute-api.us-east-1.amazonaws.com/summary_feature_gen_asyn';
+      await invokeLambda(payload, endpoint);
+      //comments processing
+      endpoint = 'https://b9zo4r44jc.execute-api.us-east-1.amazonaws.com/comments_summary_asyn';
+      await invokeLambda(payload, endpoint);
     }
     
     // 返回是否还有更多文章需要处理

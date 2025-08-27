@@ -1,6 +1,5 @@
 'use client'
 import { useState } from 'react'
-import { supabase } from '../utils/supabase/client'
 import { useRouter } from 'next/navigation'
 
 export default function RegisterModal({ isOpen, onClose, onLoginClick }) {
@@ -17,25 +16,21 @@ export default function RegisterModal({ isOpen, onClose, onLoginClick }) {
     setMessage('')
     
     try {
-      // First, sign up the user
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
+      // 调用后端 API 路由进行注册
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password, username }),
       })
-      
-      if (error) throw error
-      
-      // Then, insert the username into the users table
-      if (data.user) {
-        const { error: insertError } = await supabase
-          .from('users')
-          .insert([
-            { id: data.user.id, username }
-          ])
-          
-        if (insertError) throw insertError
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Signup failed')
       }
-      
+
       setMessage('Signup successful! Please check your email for confirmation.')
       setTimeout(() => {
         onClose()

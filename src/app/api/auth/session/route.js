@@ -12,19 +12,33 @@ export async function GET(request) {
         get(name) {
           return cookieStore.get(name)?.value
         },
+        set(name, value, options) {
+          cookieStore.set(name, value, options)
+        },
+        remove(name, options) {
+          cookieStore.delete(name, options)
+        },
       },
     }
   )
   
   // Get the session first
-  const { data: { session } } = await supabase.auth.getSession()
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+  if (sessionError) {
+    console.error('Error getting session in /api/auth/session:', sessionError);
+  } else {
+    console.log('Session in /api/auth/session:', session);
+  }
   
   // If there's a session, get the authenticated user data
   let user = null
   if (session) {
-    const { data: { user: authenticatedUser }, error } = await supabase.auth.getUser()
-    if (!error) {
+    const { data: { user: authenticatedUser }, error: userError } = await supabase.auth.getUser()
+    if (userError) {
+      console.error('Error getting user in /api/auth/session:', userError);
+    } else {
       user = authenticatedUser
+      console.log('User in /api/auth/session:', user);
     }
   }
   

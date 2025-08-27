@@ -98,6 +98,7 @@ export default function Home({ initialType }) {
         let sessionCheck;
         if (postType === 'favorites')
           sessionCheck = await checkSession();
+
         await fetchPosts(postType, sessionCheck);
         if (cancelled) {
           console.log('Cancelled after fetchPosts');
@@ -145,7 +146,8 @@ export default function Home({ initialType }) {
     let interval;
     const fetchInterestScores = async () => {
       try {
-        // 检查当前分数列表是否为空，非空则跳过API调用
+        //console.log(`interestScores: ${JSON.stringify(Object.keys(interestScores))}`)
+      // 检查当前分数列表是否为空，非空则跳过API调用
         if (Object.keys(interestScores).length > 0) {
           return;
         }
@@ -179,7 +181,7 @@ export default function Home({ initialType }) {
     }
 
     return () => clearInterval(interval);
-  }, [session?.user?.id, subscription]); // 添加 subscription 作为依赖
+  }, [session?.user?.id, subscription, interestScores, postType]); // 添加 subscription 作为依赖
 
   async function checkSession() {
     try {
@@ -833,10 +835,10 @@ export default function Home({ initialType }) {
                             {post.points || 0} points by {post.user?.username || 'anonymous'} {timeago.format(new Date(post.created_at))} | 
                             <button 
                               onClick={() => toggleComments(post.hn_id)}
-                              className="hover:underline ml-1"
+                              className="hover:underline ml-1 px-2 py-1 min-w-[120px] touch-manipulation"
                             >
-                              {post.comments_count || 0} comments
-                              {post.comments_count > 0 && (
+                              {post.comments_count || post.descendants || 0} comments
+                              {(post.comments_count > 0 || post.descendants > 0) && (
                                 <span className="ml-1">({expandedComments[post.hn_id] ? 'collapse' : 'show top3 comments'})</span>
                               )}
                             </button>

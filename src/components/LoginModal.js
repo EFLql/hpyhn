@@ -1,6 +1,5 @@
 'use client'
 import { useState } from 'react'
-import { supabase } from '../utils/supabase/client'
 import { useRouter } from 'next/navigation'
 
 export default function LoginModal({ isOpen, onClose, onRegisterClick }) {
@@ -16,13 +15,21 @@ export default function LoginModal({ isOpen, onClose, onRegisterClick }) {
     setMessage('')
     
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      // 调用后端 API 路由而不是直接使用 Supabase 客户端
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
       })
-      
-      if (error) throw error
-      
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Login failed')
+      }
+
       setMessage('Login successful!')
       setTimeout(() => {
         onClose()
@@ -36,24 +43,37 @@ export default function LoginModal({ isOpen, onClose, onRegisterClick }) {
     }
   }
 
-    const handleOAuthLogin = async (provider) => {
-        setLoading(true)
-        setMessage('')
+  const handleOAuthLogin = async (provider) => {
+    setLoading(true)
+    setMessage('')
 
-        try {
-            const { error } = await supabase.auth.signInWithOAuth({
-                provider,
-                options: {
-                    redirectTo: `${window.location.origin}/auth/callback`,
-                },
-            })
+    try {
+      // 对于 OAuth 登录，我们仍然需要使用 Supabase 客户端
+      // 但重定向到我们自己的回调页面
+      const response = await fetch('/api/auth/oauth', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          provider,
+          redirectTo: `${window.location.origin}/api/auth/callback` // Changed this line
+        }),
+      })
 
-            if (error) throw error
-        } catch (error) {
-            setMessage(error.message)
-            setLoading(false)
-        }
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'OAuth login failed')
+      }
+
+      // 重定向到 Supabase OAuth 页面
+      window.location.href = data.url
+    } catch (error) {
+      setMessage(error.message)
+      setLoading(false)
     }
+  }
 
   const handleBackgroundClick = (e) => {
     if (e.target === e.currentTarget) {
