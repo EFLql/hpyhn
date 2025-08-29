@@ -56,7 +56,8 @@ export async function GET(request) {
           descendants,
           user_id,
           text,
-          content_summary
+          content_summary,
+          summary_comments
         )
       `)
       .order('update_time', { ascending: false, nullsFirst: false })
@@ -73,7 +74,6 @@ export async function GET(request) {
         comments_count: item.hn_posts.descendants,
         text: item.hn_posts.text,
         user: { username: item.hn_posts.user_id || 'anonymous' },
-        comments: item.hn_posts.comments || [],
         update_time: item.update_time
       }));
     

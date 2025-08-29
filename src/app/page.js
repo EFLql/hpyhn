@@ -491,7 +491,7 @@ export default function Home({ initialType }) {
     
     // 如果是展开评论且还没有获取过实时评论，则获取实时评论
     if (newState && !liveComments[postId]) {
-      await fetchLiveComments(postId);
+      //await fetchLiveComments(postId);
     }
   }
 
@@ -630,13 +630,16 @@ export default function Home({ initialType }) {
     }
   };
 
-  // 获取收藏的帖子
-  const getFavoritePosts = () => {
-    // 这里可以根据用户兴趣过滤帖子
-    // 例如，返回用户标记为喜欢的帖子
-    if (!session) return [];
-    
-    return posts.filter(post => userInterests[post.id] === 'like');
+  // Helper function to parse summary_comments
+  const parseSummaryComments = (summaryCommentsString) => {
+    if (!summaryCommentsString) return [];
+    try {
+      const parsed = JSON.parse(summaryCommentsString);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      console.error("Error parsing summary_comments:", e);
+      return [];
+    }
   };
 
   return (
@@ -900,33 +903,56 @@ export default function Home({ initialType }) {
                     )}
 
                     {/* Comments show/hide logic */}
-                    {expandedComments[post.hn_id] && (
-                      <div className="mt-2 ml-6 space-y-2 border-l-2 pl-2 border-orange-200">
-                        <div className="text-xs font-medium text-orange-800 mb-1">Top 3 Comments:</div>
-                        {/* Display live comments or preloaded comments */}
-                        {(liveComments[post.hn_id] || post.comments || []).map(comment => (
-                          <div key={comment.id} className="text-xs text-gray-600">
-                            <div className="font-medium text-gray-800">
-                              {comment.user_id || 'anonymous'} · 
-                              {timeago.format(new Date(comment.created_at))}
-                            </div>
-                            <div 
-                              className="mt-1 whitespace-pre-wrap break-words prose prose-sm max-w-none"
-                              dangerouslySetInnerHTML={{ __html: formatCommentText(comment.text) }}
-                            />
-                          </div>
-                        ))}
+                    {expandedComments[post.hn_id] && post.summary_comments && (() => {
+                      const parsedSummaryComments = parseSummaryComments(post.summary_comments);
+                      
+                      // Sort the comment categories
+                      const sortedSummaryComments = [...parsedSummaryComments].sort((a, b) => {
+                        // Prioritize non-negative labels over -1
+                        if (a.label === -1 && b.label !== -1) return 1;
+                        if (a.label !== -1 && b.label === -1) return -1;
                         
-                        {/* If live comments haven't been fetched yet and preloaded comments are empty, show loading state */}
-                        {expandedComments[post.hn_id] && 
-                         !liveComments[post.hn_id] && 
-                         (!post.comments || post.comments.length === 0) && (
-                          <div className="text-xs text-gray-500">
-                            Loading comments...
-                          </div>
-                        )}
-                      </div>
-                    )}
+                        // Then sort by num_comments in descending order
+                        return b.num_comments - a.num_comments;
+                      });
+
+                      return sortedSummaryComments.length > 0 ? (
+                        <div className="mt-2 ml-6 space-y-4 border-l-2 pl-2 border-orange-200">
+                          <div className="text-xs font-medium text-orange-800 mb-1">Comments Summary:</div>
+                          {sortedSummaryComments.map((commentCategory, categoryIndex) => (
+                            <div key={categoryIndex} className="bg-orange-50 p-3 rounded">
+                              <div className="font-bold text-sm text-orange-700 mb-1">
+                                Category {commentCategory.label === -1 ? 'Uncategorized' : commentCategory.label} ({commentCategory.num_comments} comments)
+                              </div>
+                              <div className="text-xs text-gray-700 mb-2">
+                                Summary: {commentCategory.summary || 'No summary available.'}
+                              </div>
+                              {commentCategory.comments && commentCategory.comments.length > 0 && (
+                                <div className="space-y-2">
+                                  <div className="text-xs font-medium text-gray-600">Typical Comments:</div>
+                                  {commentCategory.comments.map((comment, commentIndex) => (
+                                    <div key={commentIndex} className="text-xs text-gray-600 border-t border-gray-200 pt-2">
+                                      <div className="font-medium text-gray-800">
+                                        {comment.author || 'anonymous'} · 
+                                        {timeago.format(new Date(comment.created_at))}
+                                      </div>
+                                      <div 
+                                        className="mt-1 whitespace-pre-wrap break-words prose prose-sm max-w-none"
+                                        dangerouslySetInnerHTML={{ __html: formatCommentText(comment.text) }}
+                                      />
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-xs text-gray-500 mt-2 ml-6">
+                          No comments available for this post.
+                        </div>
+                      );
+                    })()}
 
                     {/* Post text show/hide logic */}
                     {expandedTexts[post.hn_id] && post.text && (
