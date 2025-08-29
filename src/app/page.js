@@ -842,7 +842,7 @@ export default function Home({ initialType }) {
                             >
                               {post.comments_count || post.descendants || 0} comments
                               {(post.comments_count > 0 || post.descendants > 0) && (
-                                <span className="ml-1">({expandedComments[post.hn_id] ? 'collapse' : 'show top3 comments'})</span>
+                                <span className="ml-1 text-red-600 font-medium">{expandedComments[post.hn_id] ? 'collapse' : 'comments summary'}</span>
                               )}
                             </button>
                             {post.text && (
@@ -901,7 +901,17 @@ export default function Home({ initialType }) {
                         </div>
                       </div>
                     )}
-
+  
+                    {/* Post text show/hide logic */}
+                    {expandedTexts[post.hn_id] && post.text && (
+                      <div className="mt-2 ml-6 p-3 bg-green-50 rounded border border-green-200">
+                        <div className="text-xs font-medium text-green-800 mb-1">Post Text:</div>
+                        <div 
+                          className="text-xs text-gray-700 whitespace-pre-wrap break-words prose prose-sm max-w-none"
+                          dangerouslySetInnerHTML={{ __html: formatCommentText(post.text) }}
+                        />
+                      </div>
+                    )}
                     {/* Comments show/hide logic */}
                     {expandedComments[post.hn_id] && post.summary_comments && (() => {
                       const parsedSummaryComments = parseSummaryComments(post.summary_comments);
@@ -953,17 +963,6 @@ export default function Home({ initialType }) {
                         </div>
                       );
                     })()}
-
-                    {/* Post text show/hide logic */}
-                    {expandedTexts[post.hn_id] && post.text && (
-                      <div className="mt-2 ml-6 p-3 bg-green-50 rounded border border-green-200">
-                        <div className="text-xs font-medium text-green-800 mb-1">Post Text:</div>
-                        <div 
-                          className="text-xs text-gray-700 whitespace-pre-wrap break-words prose prose-sm max-w-none"
-                          dangerouslySetInnerHTML={{ __html: formatCommentText(post.text) }}
-                        />
-                      </div>
-                    )}
                   </li>
               ))}
             </ol>
