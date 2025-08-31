@@ -60,6 +60,7 @@ export default function Home({ initialType }) {
     if (pathname === '/newest') return 'newest';
     if (pathname === '/ask') return 'ask';
     if (pathname === '/show') return 'show';
+    if (pathname === '/dont-miss') return 'dont-miss';
     if (pathname === '/favorites') return 'favorites'; // Add this line
     return 'front-page';
 }
@@ -136,9 +137,12 @@ export default function Home({ initialType }) {
   }, [postType, session]) // 只依赖postType，确保只在postType改变时触发
 
   useEffect(() => {
+    let interval;
     if (session?.user?.id) {
       fetchUserInterests();
+      interval = setInterval(fetchUserInterests, 60000); // 每分钟轮询
     }
+    return () => clearInterval(interval);
   }, [session])
 
   // 定时轮询获取分数
@@ -181,7 +185,7 @@ export default function Home({ initialType }) {
     }
 
     return () => clearInterval(interval);
-  }, [session?.user?.id, subscription, interestScores, postType]); // 添加 subscription 作为依赖
+  }, [session?.user?.id, subscription, postType]); // 添加 subscription 作为依赖
 
   async function checkSession() {
     try {
@@ -543,95 +547,6 @@ export default function Home({ initialType }) {
     return null;
   }
 
-  // 新增实时获取评论的函数 - 优化版本
-  const fetchLiveComments = async (postId) => {
-    try {
-      console.log(`Fetching live comments for post ${postId}...`);
-      
-      // 首先从 Firebase API 获取帖子详情，获取排序后的评论ID
-      const firebaseResponse = await fetch(`https://hacker-news.firebaseio.com/v0/item/${postId}.json?print=pretty`, {
-        // 添加缓存控制
-        cache: 'force-cache',
-        next: { revalidate: 300 }, // 5分钟缓存
-        headers: {
-          'Connection': 'keep-alive',
-          'Keep-Alive': 'timeout=60'
-        }
-      });
-      
-      if (!firebaseResponse.ok) {
-        throw new Error(`获取帖子详情失败: ${firebaseResponse.status}`);
-      }
-      
-      const postData = await firebaseResponse.json();
-      const topCommentIds = postData?.kids?.slice(0, 3) || []; // 获取前3个评论ID
-      
-      if (topCommentIds.length === 0) {
-        console.log(`文章 ${postId} 没有评论`);
-        setLiveComments(prev => ({
-          ...prev,
-          [postId]: []
-        }));
-        return [];
-      }
-      
-      // 对每条评论单独调用 hn.algolia.com 接口获取详情
-      const commentPromises = topCommentIds.map(async (commentId) => {
-        try {
-          const commentResponse = await fetch(`https://hn.algolia.com/api/v1/items/${commentId}`, {
-            // 添加缓存控制
-            cache: 'force-cache',
-            next: { revalidate: 300 }, // 5分钟缓存
-            headers: {
-              'Connection': 'keep-alive',
-              'Keep-Alive': 'timeout=60'
-            }
-          });
-          
-          if (!commentResponse.ok) {
-            console.error(`获取评论 ${commentId} 失败: ${commentResponse.status}`);
-            return null;
-          }
-          
-          const commentData = await commentResponse.json();
-          return commentData;
-        } catch (error) {
-          console.error(`获取评论 ${commentId} 失败:`, error);
-          return null;
-        }
-      });
-      
-      // 等待所有评论获取完成
-      const comments = await Promise.all(commentPromises);
-      
-      // 过滤掉获取失败的评论并格式化
-      const formattedComments = comments
-        .filter(comment => comment && comment.text) // 过滤掉空评论
-        .map(comment => ({
-          id: comment.id,
-          text: comment.text || '',
-          created_at: new Date(comment.created_at_i * 1000).toISOString(),
-          user_id: comment.author || 'anonymous'
-        }));
-      
-      // 更新状态
-      setLiveComments(prev => ({
-        ...prev,
-        [postId]: formattedComments
-      }));
-      
-      return formattedComments;
-    } catch (error) {
-      console.error(`获取文章 ${postId} 的实时评论失败:`, error);
-      // 即使出错也要更新状态，避免无限加载
-      setLiveComments(prev => ({
-        ...prev,
-        [postId]: []
-      }));
-      return [];
-    }
-  };
-
   // Helper function to parse summary_comments
   const parseSummaryComments = (summaryCommentsString) => {
     if (!summaryCommentsString) return [];
@@ -677,6 +592,11 @@ export default function Home({ initialType }) {
                   favorites
                 </Link>
               )}
+              {/* New Don't Miss link */}
+              <Link href="/dont-miss" className="text-white hover:underline"
+                onClick={() => setCurrentPage(1)}>
+                Don't Miss
+              </Link>
             </nav>
           </div>
         </div>
