@@ -231,9 +231,9 @@ export default function Home({ initialType }) {
   };
 
   async function fetchPosts(type = 'front-page', sessionCheck = null) {
+    let user_id = sessionCheck?.user?.id || '';
     setLoading(true)
     try {
-      let user_id = sessionCheck?.user?.id || '';
       if (type == 'favorites' && user_id == '') {
         // 用户未登录，无法获取收藏
         setPosts([]);
@@ -508,11 +508,13 @@ export default function Home({ initialType }) {
     
     return DOMPurify.sanitize(text, {
       ALLOWED_TAGS: ['a', 'p', 'em', 'strong', 'code', 'pre'],
-      ALLOWED_ATTR: ['href', 'class']
+      ALLOWED_ATTR: ['href', 'class', 'style'] // Allow 'style' attribute for inline styles
     })
     .replace(/<a\s+href="([^"]+)"[^>]*>/g, 
       '<a href="$1" class="text-orange-500 hover:underline" target="_blank" rel="noopener noreferrer">')
-    .replace(/<p>/g, '<p class="mt-2">');
+    .replace(/<p>/g, '<p class="mt-2">')
+    .replace(/<pre>/g, '<pre style="word-break: break-all; white-space: pre-wrap;">') // Add style for pre tags
+    .replace(/<code>/g, '<code style="word-break: break-all;">'); // Add style for code tags
   }
 
   // 解析摘要内容的函数
@@ -643,7 +645,7 @@ export default function Home({ initialType }) {
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-2 bg-orange-50 relative min-h-screen">
+    <div className="w-full sm:w-4/5 mx-auto px-4 py-2 bg-orange-50 relative min-h-screen">
 
       {/* ====================  Header ==================== */}
       <header className="bg-orange-500 py-2 px-4 flex flex-col md:flex-row md:items-center md:justify-between">
@@ -731,7 +733,7 @@ export default function Home({ initialType }) {
       </header>
 
       {/* ====================  Main content ==================== */}
-      <main className="bg-white">
+      <main className="bg-white px-2 sm:px-4">
         {loading ? (
           <div className="flex justify-center p-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
@@ -742,7 +744,7 @@ export default function Home({ initialType }) {
           </div>
         ) : (
           <>
-            <ol className="list-none">
+              <ol className="list-none px-1 sm:px-0">
               {/* Calculate data to display for current page */}
               {posts
                 .slice((currentPage - 1) * postsPerPage, currentPage * postsPerPage)
@@ -833,34 +835,46 @@ export default function Home({ initialType }) {
                             );
                           }
                         })()}
-                        <div className="text-xs text-gray-500 mt-1 flex justify-between items-center">
-                          <div>
-                            {post.points || 0} points by {post.user?.username || 'anonymous'} {timeago.format(new Date(post.created_at))} | 
+                          <div className="text-xs text-gray-500 mt-1 flex justify-between items-center">
+                          <div className="flex flex-wrap items-center"> {/* Changed to flex-wrap to allow items to flow and wrap */}
+                            <div className="mb-1 sm:mb-0 sm:mr-2"> {/* This div contains the points, user, timeago */}
+                              {post.points || 0} points by {post.user?.username || 'anonymous'} {timeago.format(new Date(post.created_at))}
+                            </div>
+                            {/* Separator for larger screens, hidden on mobile */}
+                            <span className="mr-2 mb-1 hidden sm:inline">|</span> 
                             <button 
                               onClick={() => toggleComments(post.hn_id)}
-                              className="hover:underline ml-1 px-2 py-1 min-w-[120px] touch-manipulation"
+                              className="hover:underline mr-2 mb-1 px-2 py-1 touch-manipulation"
                             >
                               {post.comments_count || post.descendants || 0} comments
                               {(post.comments_count > 0 || post.descendants > 0) && (
-                                <span className="ml-1 text-red-600 font-medium">{expandedComments[post.hn_id] ? 'collapse' : 'comments summary'}</span>
+                                <span className="ml-1 text-red-600 font-medium">{expandedComments[post.hn_id] ? 'collapse' : 'summary'}</span>
                               )}
                             </button>
                             {post.text && (
-                              <button
-                                onClick={() => toggleText(post.hn_id)}
-                                className={`hover:underline ml-2 ${post.text ? 'text-green-600 font-medium' : 'text-gray-500'}`}
-                              >
-                                {expandedTexts[post.hn_id] ? 'hide post text' : 'show post text'}
-                              </button>
+                              <>
+                                {/* Separator for larger screens, hidden on mobile */}
+                                <span className="mr-2 mb-1 hidden sm:inline">|</span> 
+                                <button
+                                  onClick={() => toggleText(post.hn_id)}
+                                  className={`hover:underline mr-2 mb-1 ${post.text ? 'text-green-600 font-medium' : 'text-gray-500'}`}
+                                >
+                                  {expandedTexts[post.hn_id] ? 'hide post text' : 'show post text'}
+                                </button>
+                              </>
                             )}
                             {/* Summary expand/collapse button */}
                             {post.content_summary && (
-                              <button 
-                                onClick={() => toggleSummary(post.hn_id)}
-                                className={`hover:underline ml-2 ${post.content_summary ? 'text-blue-600 font-medium' : 'text-gray-500'}`}
-                              >
-                                {expandedSummaries[post.hn_id] ? 'hide summary' : 'show summary'}
-                              </button>
+                              <>
+                                {/* Separator for larger screens, hidden on mobile */}
+                                <span className="mr-2 mb-1 hidden sm:inline">|</span> 
+                                <button 
+                                  onClick={() => toggleSummary(post.hn_id)}
+                                  className={`hover:underline mr-2 mb-1 ${post.content_summary ? 'text-blue-600 font-medium' : 'text-gray-500'}`}
+                                >
+                                  {expandedSummaries[post.hn_id] ? 'hide summary' : 'post summary'}
+                                </button>
+                              </>
                             )}
                           </div>
                           {(
@@ -934,18 +948,39 @@ export default function Home({ initialType }) {
                               <div className="font-bold text-sm text-orange-700 mb-1">
                                 Category {commentCategory.label === -1 ? 'Uncategorized' : commentCategory.label} ({commentCategory.num_comments} comments)
                               </div>
-                              <div className="text-xs text-gray-700 mb-2">
-                                Summary: {commentCategory.summary || 'No summary available.'}
+                              <div className="mt-1 p-2 bg-blue-50 rounded border border-blue-200">
+                                <div className="text-xs font-medium text-blue-800 mb-1">Category Summary:</div>
+                                <div className="text-xs text-gray-700">
+                                  {commentCategory.summary || 'No summary available.'}
+                                </div>
                               </div>
                               {commentCategory.comments && commentCategory.comments.length > 0 && (
                                 <div className="space-y-2">
-                                  <div className="text-xs font-medium text-gray-600">Typical Comments:</div>
+                                  <div className="text-xs font-medium text-gray-600 p-2">Typical Comments below:</div>
                                   {commentCategory.comments.map((comment, commentIndex) => (
                                     <div key={commentIndex} className="text-xs text-gray-600 border-t border-gray-200 pt-2">
                                       <div className="font-medium text-gray-800">
                                         {comment.author || 'anonymous'} · 
                                         {timeago.format(new Date(comment.created_at))}
+                                        {comment.hn_id && (
+                                          <a
+                                            href={`https://news.ycombinator.com/item?id=${comment.hn_id}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="ml-1 text-orange-600 hover:underline"
+                                          >
+                                            view on HN
+                                          </a>
+                                        )}
                                       </div>
+                                      {comment.summary && (
+                                        <div className="mt-1 p-2 bg-blue-50 rounded border border-blue-200">
+                                          <div className="text-xs font-medium text-blue-800 mb-1">Comment Summary:</div>
+                                          <div className="text-xs text-gray-700">
+                                            {comment.summary}
+                                          </div>
+                                        </div>
+                                      )}
                                       <div 
                                         className="mt-1 whitespace-pre-wrap break-words prose prose-sm max-w-none"
                                         dangerouslySetInnerHTML={{ __html: formatCommentText(comment.text) }}
