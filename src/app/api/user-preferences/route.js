@@ -46,7 +46,7 @@ export async function GET(request) {
 
     const { data, error } = await supabase
       .from('user_preferences')
-      .select('interests, keywords')
+      .select('interests, keywords, min_points, min_comments') // Added min_points and min_comments
       .eq('user_id', userId)
       .single();
 
@@ -56,12 +56,18 @@ export async function GET(request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // If no preferences found, return empty strings
+    // If no preferences found, return empty strings and default numbers
     if (!data) {
-      return NextResponse.json({ interests: '', keywords: '' }, { status: 200 });
+      return NextResponse.json({ interests: '', keywords: '', minPoints: 0, minComments: 0 }, { status: 200 });
     }
 
-    return NextResponse.json(data, { status: 200 });
+    // Map snake_case from DB to camelCase for frontend
+    return NextResponse.json({
+      interests: data.interests,
+      keywords: data.keywords,
+      minPoints: data.min_points,
+      minComments: data.min_comments,
+    }, { status: 200 });
   } catch (error) {
     console.error('Unexpected error in GET /api/user-preferences:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -69,7 +75,7 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-  const { userId, interests, keywords } = await request.json();
+  const { userId, interests, keywords, minPoints, minComments } = await request.json(); // Destructure new fields
 
   if (!userId) {
     return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
@@ -127,13 +133,25 @@ export async function POST(request) {
       // Update existing preferences
       upsertResult = await supabase
         .from('user_preferences')
-        .update({ interests, keywords, updated_at: new Date().toISOString() })
+        .update({ 
+          interests, 
+          keywords, 
+          min_points: minPoints, // Map camelCase from frontend to snake_case for DB
+          min_comments: minComments, // Map camelCase from frontend to snake_case for DB
+          updated_at: new Date().toISOString() 
+        })
         .eq('user_id', userId);
     } else {
       // Insert new preferences
       upsertResult = await supabase
         .from('user_preferences')
-        .insert({ user_id: userId, interests, keywords });
+        .insert({ 
+          user_id: userId, 
+          interests, 
+          keywords,
+          min_points: minPoints, // Map camelCase from frontend to snake_case for DB
+          min_comments: minComments, // Map camelCase from frontend to snake_case for DB
+        });
     }
 
     if (upsertResult.error) {
