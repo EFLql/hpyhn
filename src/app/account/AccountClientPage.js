@@ -149,6 +149,7 @@ export function AccountClientPage() {
   const [isTopicSelectorOpen, setIsTopicSelectorOpen] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
+  const [isSaving, setIsSaving] = useState(false) // New state for saving status
 
   useEffect(() => {
     const checkSession = async () => {
@@ -209,6 +210,7 @@ export function AccountClientPage() {
   }
 
   const saveUserPreferences = async () => {
+    setIsSaving(true) // Set saving status to true
     try {
       const response = await fetch('/api/user-preferences', {
         method: 'POST',
@@ -232,20 +234,57 @@ export function AccountClientPage() {
     } catch (error) {
       console.error('Error saving user preferences:', error)
       alert('Error saving preferences.')
+    } finally {
+      setIsSaving(false) // Set saving status to false
     }
   }
 
+  const updateSelectedInterests = (currentInterests, interest, isAdding) => {
+    const trimmedInterest = interest.trim();
+    let newInterests = [...currentInterests];
+
+    if (isAdding) {
+      if (!newInterests.includes(trimmedInterest)) {
+        newInterests.push(trimmedInterest);
+      }
+
+      const parentCategory = CATEGORIZED_TOPICS.find(catGroup =>
+        catGroup.subTopics.includes(trimmedInterest)
+      )?.category;
+
+      if (parentCategory && !newInterests.includes(parentCategory)) {
+        newInterests.push(parentCategory);
+      }
+    } else {
+      newInterests = newInterests.filter(item => item !== trimmedInterest);
+
+      const parentCategory = CATEGORIZED_TOPICS.find(catGroup =>
+        catGroup.subTopics.includes(trimmedInterest)
+      )?.category;
+
+      if (parentCategory) {
+        const hasOtherSubTopicsFromSameCategory = newInterests.some(selected =>
+          CATEGORIZED_TOPICS.some(catGroup =>
+            catGroup.category === parentCategory && catGroup.subTopics.includes(selected)
+          )
+        );
+
+        if (!hasOtherSubTopicsFromSameCategory && newInterests.includes(parentCategory)) {
+          newInterests = newInterests.filter(item => item !== parentCategory);
+        }
+      }
+    }
+    return newInterests;
+  };
+
   const handleToggleInterest = (interest) => {
     const trimmedInterest = interest.trim();
-    if (selectedInterests.includes(trimmedInterest)) {
-      setSelectedInterests(selectedInterests.filter(item => item !== trimmedInterest));
-    } else {
-      setSelectedInterests([...selectedInterests, trimmedInterest]);
-    }
+    const isAdding = !selectedInterests.includes(trimmedInterest);
+    setSelectedInterests(updateSelectedInterests(selectedInterests, interest, isAdding));
   };
 
   const handleRemoveInterestTag = (interestToRemove) => {
-    setSelectedInterests(selectedInterests.filter(interest => interest !== interestToRemove));
+    setSelectedInterests(updateSelectedInterests(selectedInterests, interestToRemove, false));
   };
 
   if (loading) {
@@ -365,6 +404,17 @@ export function AccountClientPage() {
                   <li>Access to "Don't Miss" page</li>
                 </ul>
               </div>
+
+              {session && subscription?.status === 'active' && (
+                <div className="mt-6 p-3 bg-red-200 rounded-md">
+                  <p className="text-sm text-blue-800">
+                    Your subscription is active! Now you can configure your interests and filters to personalize your "Don't Miss" feed.
+                    <Link href="?tab=interests" className="text-blue-600 hover:underline ml-1">
+                      Configure Interests & Filters
+                    </Link>
+                  </p>
+                </div>
+              )}
               
               <div className="mt-4 p-3 bg-blue-50 rounded-md">
                 <p className="text-sm text-blue-800">
@@ -457,7 +507,7 @@ export function AccountClientPage() {
 
             <div className="mb-6">
               <label htmlFor="keywords" className="block text-sm font-medium text-gray-700">
-                Keywords to Filter (comma-separated words to include/exclude, e.g., Python, Rust, Blockchain)
+                Keywords to Filter (comma-separated words to include, e.g., Python, Rust, Blockchain)
               </label>
               <div className="mt-1">
                 <textarea
@@ -512,9 +562,13 @@ export function AccountClientPage() {
             <div className="flex justify-end">
               <button
                 onClick={saveUserPreferences}
-                className="px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors"
+                className="px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors flex items-center justify-center"
+                disabled={isSaving} // Disable button when saving
               >
-                Save Preferences
+                {isSaving && (
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
+                )}
+                {isSaving ? 'Saving...' : 'Save Preferences'} {/* Change text based on saving status */}
               </button>
             </div>
           </div>
