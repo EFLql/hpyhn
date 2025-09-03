@@ -41,9 +41,7 @@ export async function POST(request) {
     // 处理订阅
     switch (payload.resource_name) {
       case 'sale':
-        if (payload.recurrence === 'monthly') {
-          await handleActiveSubscription(payload, verification.sale)
-        }
+        await handleActiveSubscription(payload, verification.sale)
         break
         
       case 'subscription':
@@ -123,7 +121,10 @@ async function handleActiveSubscription(payload, verifiedSale) {
 
   // 计算当前周期结束日期（对于按月订阅）
   let currentPeriodEnd = null;
-  if (payload.recurrence === 'monthly' && payload.sale_timestamp) {
+  if (payload.product_name === 'hpyhn_free_trail' && payload.sale_timestamp) {
+    const saleDate = new Date(payload.sale_timestamp);
+    currentPeriodEnd = new Date(saleDate.setDate(saleDate.getDate() + 14));
+  } else if (payload.recurrence === 'monthly' && payload.sale_timestamp) {
     const saleDate = new Date(payload.sale_timestamp);
     // 对于按月订阅，周期结束日期是下个月的同一天
     currentPeriodEnd = new Date(saleDate.setMonth(saleDate.getMonth() + 1));

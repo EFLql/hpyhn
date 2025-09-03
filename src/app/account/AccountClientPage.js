@@ -357,14 +357,18 @@ export function AccountClientPage() {
             <div className="border-t border-gray-200 pt-8">
               <h2 className="text-xl font-semibold mb-4">Subscription</h2>
               
-              {subscription ? (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              {subscription && subscription.status === 'active' ? (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
                   <div className="flex justify-between items-start">
                     <div>
-                      <h3 className="font-medium text-green-800">Active Subscription</h3>
+                      <h3 className="font-medium text-green-800">
+                        {subscription.product_name === 'hpyhn_free_trail' ? 'Free Trial Active' : 'Active Subscription'}
+                      </h3>
                       <p className="text-sm text-green-700 mt-1">
-                        Your subscription is active and will renew on{' '}
-                        {new Date(subscription.current_period_end).toLocaleDateString()}
+                        {subscription.product_name === 'hpyhn_free_trail' ? 
+                          `Your free trial ends on ${new Date(subscription.current_period_end).toLocaleDateString()}` :
+                          `Your subscription is active and will renew on ${new Date(subscription.current_period_end).toLocaleDateString()}`
+                        }
                       </p>
                       <div className="mt-3">
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
@@ -381,32 +385,153 @@ export function AccountClientPage() {
                   </div>
                 </div>
               ) : (
-                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                  <h3 className="font-medium text-orange-800">No Active Subscription</h3>
-                  <p className="text-sm text-orange-700 mt-1">
-                    Subscribe to unlock premium features and support our service.
-                  </p>
-                  <div className="mt-4">
-                    <GumroadSubscribeButton 
-                      session={session} 
-                      subscription={subscription} 
-                    />
+                <div className="mb-8">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Choose Your Plan</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* 14-Day Free Trial Plan */}
+                    <div className="border border-gray-200 rounded-lg p-6 flex flex-col justify-between">
+                      <div>
+                        <h4 className="text-xl font-bold text-orange-600 mb-2">14-Day Free Trial</h4>
+                        <p className="text-3xl font-extrabold text-gray-900 mb-4">Free<span className="text-base font-medium text-gray-500">/14 days</span></p>
+                        <ul className="space-y-2 text-sm text-gray-600">
+                          <li className="flex items-center">
+                            <svg className="h-5 w-5 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                            HackerNews post summarization and keyword extraction
+                          </li>
+                          <li className="flex items-center">
+                            <svg className="h-5 w-5 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                            HackerNews comment analysis
+                          </li>
+                          <li className="flex items-center">
+                            <svg className="h-5 w-5 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                            Access to basic AI-powered interest model
+                          </li>
+                          <li className="flex items-center">
+                            <svg className="h-5 w-5 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                            Personalized "Don't Miss" feed (limited)
+                          </li>
+                          <li className="flex items-center">
+                            <svg className="h-5 w-5 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                            Explore features before committing
+                          </li>
+                        </ul>
+                      </div>
+                      <GumroadSubscribeButton 
+                        session={session} 
+                        subscription={subscription}
+                        productId="eeyiz" // Replace with actual Gumroad product ID for free trial
+                      />
+                    </div>
+
+                    {/* Monthly Plan */}
+                    <div className="border border-orange-500 rounded-lg p-6 flex flex-col justify-between relative shadow-lg">
+                      {/* Removed "Save 20%" badge as it's no longer a yearly plan */}
+                      <div>
+                        <h4 className="text-xl font-bold text-orange-600 mb-2">Monthly Plan</h4>
+                        <p className="text-3xl font-extrabold text-gray-900 mb-4">$3.99<span className="text-base font-medium text-gray-500">/month</span></p>
+                        <ul className="space-y-2 text-sm text-gray-600">
+                          <li className="flex items-center">
+                            <svg className="h-5 w-5 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                            HackerNews post summarization and keyword extraction
+                          </li>
+                          <li className="flex items-center">
+                            <svg className="h-5 w-5 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                            HackerNews comment analysis
+                          </li>
+                          <li className="flex items-center">
+                            <svg className="h-5 w-5 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                            Full AI-powered interest model
+                          </li>
+                          <li className="flex items-center">
+                            <svg className="h-5 w-5 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                            Unlimited personalized "Don't Miss" feed
+                          </li>
+                          <li className="flex items-center">
+                            <svg className="h-5 w-5 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                            Early access to new features
+                          </li>
+                          <li className="flex items-center">
+                            <svg className="h-5 w-5 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                            Priority support
+                          </li>
+                        </ul>
+                      </div>
+                      <GumroadSubscribeButton 
+                        session={session} 
+                        subscription={subscription}
+                        productId="qgnkzu"
+                      />
+                    </div>
                   </div>
                 </div>
               )}
 
               <div className="mt-6">
                 <h3 className="font-medium text-gray-900 mb-2">Subscription Benefits</h3>
-                <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
-                  <li>AI-powered interest model predicts your interest level for each post</li>
-                  <li>Automatically filters posts you might be interested in based on your preferences</li>
-                  <li>Early access to new features</li>
-                  <li>Access to "Don't Miss" page</li>
+                <ul className="space-y-1 text-sm text-gray-600">
+                  <li className="flex items-center">
+                    <svg className="h-5 w-5 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                    HackerNews post summarization and keyword extraction
+                  </li>
+                  <li className="flex items-center">
+                    <svg className="h-5 w-5 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                    HackerNews comment analysis: topic grouping, main point extraction, and long comment summarization for quick understanding.
+                  </li>
+                  <li className="flex items-center">
+                    <svg className="h-5 w-5 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                    AI-powered interest model predicts your interest level for each post
+                  </li>
+                  <li className="flex items-center">
+                    <svg className="h-5 w-5 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                    Automatically filters posts you might be interested in based on your preferences
+                  </li>
+                  <li className="flex items-center">
+                    <svg className="h-5 w-5 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                    Early access to new features
+                  </li>
+                  <li className="flex items-center">
+                    <svg className="h-5 w-5 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                    Access to "Don't Miss" page
+                  </li>
                 </ul>
               </div>
 
               {session && subscription?.status === 'active' && (
-                <div className="mt-6 p-3 bg-red-200 rounded-md">
+                <div className="mt-6 p-3 bg-blue-100 rounded-md">
                   <p className="text-sm text-blue-800">
                     Your subscription is active! Now you can configure your interests and filters to personalize your "Don't Miss" feed.
                     <Link href="?tab=interests" className="text-blue-600 hover:underline ml-1">

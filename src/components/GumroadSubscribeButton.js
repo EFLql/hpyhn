@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-export default function GumroadSubscribeButton({ session, subscription, compact = false }) {
+export default function GumroadSubscribeButton({ session, subscription, compact = false, productId }) {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState(null)
 
@@ -15,8 +15,8 @@ export default function GumroadSubscribeButton({ session, subscription, compact 
         return
       }
       
-      // 将用户ID作为自定义参数传递给Gumroad
-      const gumroadUrl = `https://gumroad.com/l/${process.env.NEXT_PUBLIC_GUMROAD_PRODUCT_ID}?user_id=${userId}`
+      // 将用户ID作为自定义参数传递给Gumroad，并使用传入的productId
+      const gumroadUrl = `https://gumroad.com/l/${productId}?user_id=${userId}`
       window.open(gumroadUrl, '_blank')
     } catch (error) {
       setMessage('cannot open Gumroad')

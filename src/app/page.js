@@ -529,30 +529,6 @@ export default function Home({ initialType, session: dontMissSession, subscripti
     }
   }
 
-  /*
-  const handleManualSync = async () => {
-    setSyncLoading(true)
-    setSyncMessage(null)
-    
-    try {
-      const response = await fetch('/api/sync-hn-posts')
-      const result = await response.json()
-      
-      if (result.success) {
-        setSyncMessage('同步成功！')
-        await fetchPosts()
-      } else {
-        setSyncMessage(`同步失败: ${result.error || '未知错误'}`)
-      }
-    } catch (error) {
-      setSyncMessage(`请求失败: ${error.message}`)
-    } finally {
-      setSyncLoading(false)
-      setTimeout(() => setSyncMessage(null), 3000)
-    }
-  }
-  */
-
   const toggleText = (postId) => {
     setExpandedTexts(prev => ({
       ...prev,
