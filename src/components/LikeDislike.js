@@ -15,7 +15,7 @@ export default function LikeDislike({
         onMouseLeave={() => setIsHovering(false)}
         onClick={() => onSelect(postId, 'like')}
         className={`text-xl ${currentReaction === 'like' ? 'text-green-500' : 'text-gray-400 hover:text-green-500'}`}
-        title="喜欢"
+        title="like"
       >
         {currentReaction === 'like' || isHovering ? '👍' : '😊'}
       </button>
@@ -25,7 +25,7 @@ export default function LikeDislike({
         onMouseLeave={() => setIsHovering(false)}
         onClick={() => onSelect(postId, 'dislike')}
         className={`text-xl ${currentReaction === 'dislike' ? 'text-red-500' : 'text-gray-400 hover:text-red-500'}`}
-        title="不喜欢"
+        title="dislike"
       >
         {currentReaction === 'dislike' || isHovering ? '👎' : '😊'}
       </button>

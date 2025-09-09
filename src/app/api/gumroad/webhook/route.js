@@ -3,9 +3,50 @@ import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
+
+// Helper function to send GA4 events from the server
+async function sendGa4Event(userId, eventName, eventParams) {
+  const measurementId = process.env.GA_MEASUREMENT_ID;
+  const apiSecret = process.env.GA_API_SECRET;
+
+  if (!measurementId || !apiSecret) {
+    console.warn('GA4 Measurement ID or API Secret not configured. Skipping GA4 event.');
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `https://www.google-analytics.com/mp/collect?measurement_id=${measurementId}&api_secret=${apiSecret}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          client_id: userId, // Use userId as client_id for server-side events
+          user_id: userId, // Also send as user_id for cross-platform tracking
+          events: [{
+            name: eventName,
+            params: eventParams,
+          }],
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      console.error(`Failed to send GA4 event: ${response.status} ${response.statusText}`);
+      const errorBody = await response.text();
+      console.error('GA4 error response:', errorBody);
+    } else {
+      console.log(`GA4 event '${eventName}' sent successfully for user ${userId}`);
+    }
+  } catch (error) {
+    console.error('Error sending GA4 event:', error);
+  }
+}
 
 export async function POST(request) {
   try {
@@ -159,6 +200,16 @@ async function handleActiveSubscription(payload, verifiedSale) {
 
   if (error) {
     console.error('Error upserting subscription:', error)
+  } else {
+    // Send GA4 purchase event after successful upsert
+    await sendGa4Event(userId, 'purchaseSuccess', {
+      currency: payload.currency,
+      value: parseFloat(payload.price) / 100, // Gumroad price is in cents
+      transaction_id: payload.sale_id || payload.order_number,
+      product_name: payload.product_name,
+      status: payload.refunded === 'true' ? 'refunded' : 'active',
+      start_time: new Date().toISOString()
+    });
   }
 }
 

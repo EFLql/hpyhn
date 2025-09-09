@@ -36,6 +36,9 @@ export default function Home({ initialType, session: dontMissSession, subscripti
   const [readPosts, setReadPosts] = useState([]); // New state to track read posts for visual feedback
   const [selectedPosts, setSelectedPosts] = useState([]);
 
+  // Create a ref to hold the latest interestScores
+  const latestInterestScores = useRef(interestScores);
+
   // Determine which session and subscription to use based on initialType
   const currentSession = initialType === 'dont-miss' ? dontMissSession : userSession;
   const currentSubscription = initialType === 'dont-miss' ? dontMissSubscription : subscriptionStatus;
@@ -46,7 +49,9 @@ export default function Home({ initialType, session: dontMissSession, subscripti
 
   useEffect(() => {
   const fetchSubscription = async () => {
-    if (!currentSession?.user?.id) return
+    if (!currentSession?.user?.id) {
+      return;
+    }
     
     try {
       const response = await fetch('/api/subscription')
@@ -66,6 +71,64 @@ export default function Home({ initialType, session: dontMissSession, subscripti
   
   fetchSubscription()
 }, [currentSession]) // Depend on currentSession
+
+  // Dedicated useEffect for GA4 user_id and page_view management
+  useEffect(() => {
+    // Check if gtag is available before attempting to use it
+    if (typeof window === 'undefined' || !window.gtag) {
+      console.warn('GA4: gtag is not defined. Google Analytics 4 tracking might not be active.');
+      return;
+    }
+
+    const GA_MEASUREMENT_ID = 'G-27NFWGZ38B'; // Your GA4 Measurement ID
+
+    // Function to send a page_view event
+    const sendPageView = (url) => {
+      console.log(`GA4: Sending page_view for URL: ${url}`);
+      window.gtag('event', 'page_view', {
+        page_path: url,
+        page_location: window.location.href,
+        page_title: document.title,
+      });
+    };
+
+    // Handle initial page load
+    if (currentSession?.user?.id) {
+      const userIdToSet = currentSession.user.id;
+      console.log(`GA4: User logged in. Setting user_id=${userIdToSet} for ${GA_MEASUREMENT_ID}`);
+      
+      window.gtag('config', GA_MEASUREMENT_ID, {
+        'user_id': userIdToSet,
+        'send_page_view': false // Ensure no automatic page_view from this config call
+      });
+      sendPageView(pathname); // Send initial page_view with user_id
+    } else {
+      console.log(`GA4: User logged out or no session. Clearing user_id for ${GA_MEASUREMENT_ID}`);
+      
+      window.gtag('config', GA_MEASUREMENT_ID, {
+        'user_id': undefined, // Clear user_id
+        'send_page_view': false // Ensure no automatic page_view from this config call
+      });
+      sendPageView(pathname); // Send initial page_view without user_id
+    }
+
+    // Handle client-side route changes
+    const handleRouteChange = (url) => {
+      // Only send page_view if the user_id has been configured (or cleared)
+      // The user_id is already handled by the initial useEffect run based on currentSession.
+      // We just need to send the page_view for the new route.
+      sendPageView(url);
+    };
+
+    router.events.on('routeChangeComplete', handleRouteChange);
+
+    // Cleanup function for useEffect
+    return () => {
+      router.events.off('routeChangeComplete', handleRouteChange);
+      console.log('GA4: Cleanup - routeChangeComplete event listener removed.');
+    };
+
+  }, [currentSession, pathname, router.events]); // Depend on currentSession, pathname, and router.events
 
   // 在组件顶部添加这个函数
   function getPostType(initialType, pathname) {
@@ -100,7 +163,7 @@ export default function Home({ initialType, session: dontMissSession, subscripti
         return;
       }
       try {
-        const cloudflareWorkerUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_WORKER_URL || 'https://hyphn-kv.1633121980.workers.dev';
+        const cloudflareWorkerUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_WORKER_URL || 'https://hpyhn.xyz/worker';
         const response = await fetch(`${cloudflareWorkerUrl}/api/dont-miss?queryCount=true&user_id=${currentSession.user.id}`);
         const data = await response.json();
         if (response.ok && typeof data.count === 'number') {
@@ -151,8 +214,7 @@ export default function Home({ initialType, session: dontMissSession, subscripti
       try {    
         console.log('Fetching posts for type:', postType);
         let sessionCheck;
-        if (postType === 'favorites' || postType === 'dont-miss')
-          sessionCheck = await checkSession();
+        sessionCheck = await checkSession();
 
         await fetchPosts(postType, sessionCheck);
         if (cancelled) {
@@ -169,8 +231,6 @@ export default function Home({ initialType, session: dontMissSession, subscripti
       }
     };
 
-    console.log('Fetching session');
-    checkSession();
     if (!cancelled) {
       mainInterval = setInterval(() => {
         if (!cancelled) {
@@ -199,14 +259,19 @@ export default function Home({ initialType, session: dontMissSession, subscripti
     return () => clearInterval(interval);
   }, [currentSession])
 
+  // Update the ref whenever interestScores state changes
+  useEffect(() => {
+    latestInterestScores.current = interestScores;
+  }, [interestScores]);
+
   // 定时轮询获取分数
   useEffect(() => {
     let interval;
     const fetchInterestScores = async () => {
       try {
-        //console.log(`interestScores: ${JSON.stringify(Object.keys(interestScores))}`)
-      // 检查当前分数列表是否为空，非空则跳过API调用
-        if (Object.keys(interestScores).length > 0) {
+        //console.log(`interestScores: ${JSON.stringify(Object.keys(latestInterestScores.current))}`)
+        // 检查当前分数列表是否为空，非空则跳过API调用
+        if (Object.keys(latestInterestScores.current).length > 0) {
           return;
         }
         // 检查用户是否有订阅
@@ -221,7 +286,7 @@ export default function Home({ initialType, session: dontMissSession, subscripti
         });
         if (params.get('user_id') == '' || params.get('postType') == 'favorites')
           return;
-        const cloudflareWorkerUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_WORKER_URL || 'https://hyphn-kv.1633121980.workers.dev';
+        const cloudflareWorkerUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_WORKER_URL || 'https://hpyhn.xyz/worker';
         const response = await fetch(`${cloudflareWorkerUrl}/api/user-interest-score?${params}`);
         const data = await response.json();
         if (response.ok) {
@@ -303,7 +368,7 @@ export default function Home({ initialType, session: dontMissSession, subscripti
           return;
         }
         // 首先尝试调用Cloudflare Worker接口
-        const cloudflareWorkerUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_WORKER_URL || 'https://hyphn-kv.1633121980.workers.dev';
+        const cloudflareWorkerUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_WORKER_URL || 'https://hpyhn.xyz/worker';
         const response = await fetch(`${cloudflareWorkerUrl}/api/posts?type=${type}&user_id=${user_id}`)
         const data = await response.json()
         //console.Console.log('Fetched posts:', data)
@@ -315,57 +380,16 @@ export default function Home({ initialType, session: dontMissSession, subscripti
           if (type === 'dont-miss') {
             setDontMissCount(data.length); // Update count for 'dont-miss'
           }
-        } else {
-          // 如果Cloudflare Worker接口返回错误，尝试回退到后端接口
-          console.warn('Cloudflare Worker API failed, falling back to backend API')
-          const fallbackResponse = await fetch(`/api/posts?type=${type}&user_id=${user_id}`)
-          const fallbackData = await fallbackResponse.json()
-
-          if (fallbackResponse.ok) {
-            // 保存原始数据并重置排序状态
-            setOriginalPosts(fallbackData);
-            setPosts(fallbackData);
-            setIsSortedByInterest(false);
-            if (type === 'dont-miss') {
-              setDontMissCount(fallbackData.length); // Update count for 'dont-miss'
-            }
-          } else {
+        }  else {
             console.error('Failed to fetch posts from backend:', fallbackData.error)
             setPosts([])
             if (type === 'dont-miss') {
               setDontMissCount(0); // Reset count for 'dont-miss'
             }
           }
-        }
       } catch (error) {
         // 如果Cloudflare Worker接口网络错误，尝试回退到后端接口
-        console.warn('Cloudflare Worker API failed, falling back to backend API:', error)
-        try {
-          const fallbackResponse = await fetch(`/api/posts?type=${type}&user_id=${user_id}`)
-          const fallbackData = await fallbackResponse.json()
-
-          if (fallbackResponse.ok) {
-            // 保存原始数据并重置排序状态
-            setOriginalPosts(fallbackData);
-            setPosts(fallbackData);
-            setIsSortedByInterest(false);
-            if (type === 'dont-miss') {
-              setDontMissCount(fallbackData.length); // Update count for 'dont-miss'
-            }
-          } else {
-            console.error('Failed to fetch posts from backend:', fallbackData.error)
-            setPosts([])
-            if (type === 'dont-miss') {
-              setDontMissCount(0); // Reset count for 'dont-miss'
-            }
-          }
-        } catch (fallbackError) {
-          console.error('Error fetching posts from both APIs:', fallbackError)
-          setPosts([])
-          if (type === 'dont-miss') {
-            setDontMissCount(0); // Reset count for 'dont-miss'
-          }
-        }
+        console.warn('Cloudflare Worker API failed:', error)
       } finally {
         setLoadingPosts(false) // Use internal loading state
       }
@@ -374,7 +398,7 @@ export default function Home({ initialType, session: dontMissSession, subscripti
     async function fetchUserInterests() {
     try {
       // 首先尝试调用Cloudflare Worker接口
-      const cloudflareWorkerUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_WORKER_URL || 'https://hyphn-kv.1633121980.workers.dev';
+      const cloudflareWorkerUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_WORKER_URL || 'https://hpyhn.xyz/worker';
       console.log('Fetching user interests from Cloudflare Worker:', cloudflareWorkerUrl);
       const cloudflareResponse = await fetch(`${cloudflareWorkerUrl}/api/user-interests?user_id=${currentSession?.user?.id}`);
       
@@ -417,10 +441,14 @@ export default function Home({ initialType, session: dontMissSession, subscripti
       currentSetIsLoginOpen(true); // Use the appropriate setIsLoginOpen
       return;
     }
-  
+    // GA4 Event: Track user reaction
+    if (typeof window !== 'undefined' && window.gtag) {
+      window.gtag('event', 'postInterestClick', {
+      });
+    }
     try {
       // 首先尝试调用Cloudflare Worker接口
-      const cloudflareWorkerUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_WORKER_URL || 'https://hyphn-kv.1633121980.workers.dev';
+      const cloudflareWorkerUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_WORKER_URL || 'https://hpyhn.xyz/worker';
       console.log('Fetching user interests from Cloudflare Worker:', cloudflareWorkerUrl);
       const cloudflareResponse = await fetch(`${cloudflareWorkerUrl}/api/user-interests`, {
         method: 'POST',
@@ -534,6 +562,11 @@ export default function Home({ initialType, session: dontMissSession, subscripti
       ...prev,
       [postId]: !prev[postId]
     }))
+    // GA4 Event: Track user reaction
+    if (typeof window !== 'undefined' && window.gtag) {
+      window.gtag('event', 'showPostTextClick', {
+      });
+    }
   }
 
   const toggleComments = async (postId) => {
@@ -548,6 +581,11 @@ export default function Home({ initialType, session: dontMissSession, subscripti
     if (newState && !liveComments[postId]) {
       //await fetchLiveComments(postId);
     }
+    // GA4 Event: Track user reaction
+    if (typeof window !== 'undefined' && window.gtag) {
+      window.gtag('event', 'commentsSummaryClick', {
+      });
+    }
   }
 
   // 新增切换摘要展开/收缩的函数
@@ -556,6 +594,11 @@ export default function Home({ initialType, session: dontMissSession, subscripti
       ...prev,
       [postId]: !prev[postId]
     }))
+    // GA4 Event: Track user reaction
+    if (typeof window !== 'undefined' && window.gtag) {
+      window.gtag('event', 'contentSummaryClick', {
+      });
+    }
   }
 
   const formatCommentText = (text) => {
@@ -600,14 +643,25 @@ export default function Home({ initialType, session: dontMissSession, subscripti
 
   // Helper function to parse summary_comments
   const parseSummaryComments = (summaryCommentsString) => {
-    if (!summaryCommentsString) return [];
-    try {
-      const parsed = JSON.parse(summaryCommentsString);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (e) {
-      console.error("Error parsing summary_comments:", e);
-      return [];
+    if (!summaryCommentsString) return null;
+
+    // If it's already an object (e.g., already parsed JSON), return it if it's an array
+    if (typeof summaryCommentsString === 'object') {
+      return Array.isArray(summaryCommentsString) ? summaryCommentsString : [];
     }
+
+    // If it's a string, try to parse it as JSON
+    if (typeof summaryCommentsString === 'string') {
+      try {
+        const parsed = JSON.parse(summaryCommentsString);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (e) {
+        console.error("Error parsing summary_comments string:", e);
+        return [];
+      }
+    }
+    
+    return [];
   };
 
   // Determine which login modal state to use
@@ -673,16 +727,22 @@ export default function Home({ initialType, session: dontMissSession, subscripti
     setSelectedPosts([]); // Clear selection after action
 
     try {
-      const cloudflareWorkerUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_WORKER_URL || 'https://hyphn-kv.1633121980.workers.dev';
-      // Send individual DELETE requests for each selected post
-      // This could be optimized with a batch API if backend supports it
-      const deletePromises = selectedPosts.map(postId =>
+      const cloudflareWorkerUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_WORKER_URL || 'https://hpyhn.xyz/worker';
+      // Chunk selectedPosts into batches of 100
+      const batchSize = 100;
+      const postBatches = [];
+      for (let i = 0; i < selectedPosts.length; i += batchSize) {
+        postBatches.push(selectedPosts.slice(i, i + batchSize));
+      }
+
+      // Send batch DELETE requests for each chunk
+      const deletePromises = postBatches.map(batch =>
         fetch(`${cloudflareWorkerUrl}/api/dont-miss`, {
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ postId, user_id: currentSession.user.id }),
+          body: JSON.stringify({ postIds: batch, user_id: currentSession.user.id }), // Send an array of postIds
         })
       );
 
@@ -940,6 +1000,10 @@ export default function Home({ initialType, session: dontMissSession, subscripti
                       />
                       <span className="ml-2 text-sm text-gray-700">Select All (Page {currentPage})</span>
                     </label>
+                    {/* New tip for the user */}
+                    <span className="text-xs text-gray-500 ml-4 hidden md:block">
+                      Comments on recent posts may update. Consider marking as read later to avoid missing important updates.
+                    </span>
                     <button
                       onClick={handleMarkSelectedAsRead}
                       disabled={selectedPosts.length === 0}
@@ -973,7 +1037,7 @@ export default function Home({ initialType, session: dontMissSession, subscripti
                               <div className="flex-1" />
                               <div className="flex items-center">
                                 <span className="mt-auto mb-auto w-8 h-8 flex items-center justify-center text-sm bg-purple-50 text-purple-700 rounded-full font-bold">
-                                  {interestScores[post.id] ?? 0}%
+                                  {interestScores[post.id] !== undefined ? (interestScores[post.id] < 1 ? Math.round(interestScores[post.id] * 100) : interestScores[post.id]) : 0}%
                                 
                                 {/* Only show sort icon next to first post's interest score */}
                                 {index === 0 && currentSubscription?.status === 'active' && (
@@ -987,7 +1051,7 @@ export default function Home({ initialType, session: dontMissSession, subscripti
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10l4-4 4 4M8 14l4 4 4-4"></path>
                                       </svg>
                                     </button>
-                                    <div className="absolute bottom-full left-full -translate-x-1/3 mb-2 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                                    <div className="absolute bottom-full left-1/2 transform -translate-x-1 mb-2 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
                                       Sort by your interests
                                     </div>
                                   </div>
@@ -1143,18 +1207,38 @@ export default function Home({ initialType, session: dontMissSession, subscripti
                           </div>
                         )}
                         {/* Comments show/hide logic */}
-                        {expandedComments[post.hn_id] && post.summary_comments && (() => {
+                        {expandedComments[post.hn_id] && (() => {
                           const parsedSummaryComments = parseSummaryComments(post.summary_comments);
                           
-                          // Sort the comment categories
-                          const sortedSummaryComments = [...parsedSummaryComments].sort((a, b) => {
+                          // Check if there are comments but no summary comments due to subscription status
+                          if (parsedSummaryComments !== null && 
+                            parsedSummaryComments.length === 0 &&
+                            (post.comments_count > 0 || post.descendants > 0)
+                          ) {
+                            return (
+                              <div className="mt-2 ml-6 p-3 bg-red-50 rounded border border-red-200 text-red-800 text-xs">
+                                <p className="font-medium mb-1">Comments Summary is a Premium Feature</p>
+                                <p>
+                                  To view summarized comments and understand the key discussions quickly,
+                                  please{' '}
+                                  <Link href="/account" className="text-blue-600 hover:underline">
+                                    subscribe to unlock this feature
+                                  </Link>
+                                  . New users get a 14-day free trial!
+                                </p>
+                              </div>
+                            );
+                          }
+
+                          // Sort the comment categories (existing logic)
+                          const sortedSummaryComments = parsedSummaryComments ? [...parsedSummaryComments].sort((a, b) => {
                             // Prioritize non-negative labels over -1
                             if (a.label === -1 && b.label !== -1) return 1;
                             if (a.label !== -1 && b.label === -1) return -1;
                             
                             // Then sort by num_comments in descending order
                             return b.num_comments - a.num_comments;
-                          });
+                          }) : [];
 
                           return sortedSummaryComments.length > 0 ? (
                             <div className="mt-2 ml-6 space-y-4 border-l-2 pl-2 border-orange-200">
@@ -1210,7 +1294,10 @@ export default function Home({ initialType, session: dontMissSession, subscripti
                             </div>
                           ) : (
                             <div className="text-xs text-gray-500 mt-2 ml-6">
-                              No comments available for this post.
+                              { (post.comments_count > 0 || post.descendants > 0) ? 
+                                'No comments analysis available for this post now.' : 
+                                'No comments available for this post.' 
+                              }
                             </div>
                           );
                         })()}
@@ -1283,29 +1370,31 @@ export default function Home({ initialType, session: dontMissSession, subscripti
                               <div className="flex flex-col h-full mr-1">
                                 <span className="text-xs  w-8 h-5 bg-orange-100 text-orange-800 px-1 rounded mt-1 flex items-center justify-center">HN</span>
                                 <div className="flex-1" />
-                                <div className="flex items-center">
-                                  <span className="mt-auto mb-auto w-8 h-8 flex items-center justify-center text-sm bg-purple-50 text-purple-700 rounded-full font-bold">
-                                    {interestScores[post.id] ?? 0}%
-                                  
-                                  {/* Only show sort icon next to first post's interest score */}
-                                  {index === 0 && currentSubscription?.status === 'active' && (
-                                    <div className="relative group ml-1">
-                                      <button
-                                        onClick={sortPostsByInterest}
-                                        className="text-gray-500 hover:text-orange-500 focus:outline-none"
-                                        aria-label="Sort by Interest"
-                                      >
-                                        <svg className="w-7 h-7" fill="none" stroke="red" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10l4-4 4 4M8 14l4 4 4-4"></path>
-                                        </svg>
-                                      </button>
-                                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                                        Sort by your interests
+                                {postType !== 'favorites' && (
+                                  <div className="flex items-center">
+                                    <span className="mt-auto mb-auto w-8 h-8 flex items-center justify-center text-sm bg-purple-50 text-purple-700 rounded-full font-bold">
+                                      {interestScores[post.id] !== undefined ? (interestScores[post.id] < 1 ? Math.round(interestScores[post.id] * 100) : interestScores[post.id]) : 0}%
+                                    
+                                    {/* Only show sort icon next to first post's interest score */}
+                                    {index === 0 && currentSubscription?.status === 'active' && (
+                                      <div className="relative group ml-1">
+                                        <button
+                                          onClick={sortPostsByInterest}
+                                          className="text-gray-500 hover:text-orange-500 focus:outline-none"
+                                          aria-label="Sort by Interest"
+                                        >
+                                          <svg className="w-7 h-7" fill="none" stroke="red" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10l4-4 4 4M8 14l4 4 4-4"></path>
+                                          </svg>
+                                        </button>
+                                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                                          Sort by your interests
+                                        </div>
                                       </div>
-                                    </div>
-                                  )}
-                                  </span>
-                                </div>
+                                    )}
+                                    </span>
+                                  </div>
+                                )}
                                 <div className="flex-1" />
                               </div>
                               <div className="flex-1">
@@ -1455,18 +1544,38 @@ export default function Home({ initialType, session: dontMissSession, subscripti
                             </div>
                           )}
                           {/* Comments show/hide logic */}
-                          {expandedComments[post.hn_id] && post.summary_comments && (() => {
+                          {expandedComments[post.hn_id] && (() => {
                             const parsedSummaryComments = parseSummaryComments(post.summary_comments);
                             
-                            // Sort the comment categories
-                            const sortedSummaryComments = [...parsedSummaryComments].sort((a, b) => {
+                            // Check if there are comments but no summary comments due to subscription status
+                            if (parsedSummaryComments !== null && 
+                              parsedSummaryComments.length === 0 &&
+                              (post.comments_count > 0 || post.descendants > 0)
+                            ) {
+                              return (
+                                <div className="mt-2 ml-6 p-3 bg-red-50 rounded border border-red-200 text-red-800 text-xs">
+                                  <p className="font-medium mb-1">Comments Summary is a Premium Feature</p>
+                                  <p>
+                                    To view summarized comments and understand the key discussions quickly,
+                                    please{' '}
+                                    <Link href="/account" className="text-blue-600 hover:underline">
+                                      subscribe to unlock this feature
+                                    </Link>
+                                    . New users get a 14-day free trial!
+                                  </p>
+                                </div>
+                              );
+                            }
+
+                            // Sort the comment categories (existing logic)
+                            const sortedSummaryComments = parsedSummaryComments ? [...parsedSummaryComments].sort((a, b) => {
                               // Prioritize non-negative labels over -1
                               if (a.label === -1 && b.label !== -1) return 1;
                               if (a.label !== -1 && b.label === -1) return -1;
                               
                               // Then sort by num_comments in descending order
                               return b.num_comments - a.num_comments;
-                            });
+                            }) : [];
 
                             return sortedSummaryComments.length > 0 ? (
                               <div className="mt-2 ml-6 space-y-4 border-l-2 pl-2 border-orange-200">
@@ -1522,8 +1631,11 @@ export default function Home({ initialType, session: dontMissSession, subscripti
                               </div>
                             ) : (
                               <div className="text-xs text-gray-500 mt-2 ml-6">
-                                No comments available for this post.
-                              </div>
+                              { (post.comments_count > 0 || post.descendants > 0) ? 
+                                'No comments analysis available for this post now.' : 
+                                'No comments available for this post.' 
+                              }
+                            </div>
                             );
                           })()}
                         </li>

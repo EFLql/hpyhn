@@ -14,6 +14,13 @@ export default function GumroadSubscribeButton({ session, subscription, compact 
         setLoading(false)
         return
       }
+      // GA4 Event: Track user reaction
+      if (typeof window !== 'undefined' && window.gtag) {
+        window.gtag('event', 'subscriptionClick', {
+          user_id: userId,
+          productId: productId
+        });
+      }
       
       // 将用户ID作为自定义参数传递给Gumroad，并使用传入的productId
       const gumroadUrl = `https://gumroad.com/l/${productId}?user_id=${userId}`

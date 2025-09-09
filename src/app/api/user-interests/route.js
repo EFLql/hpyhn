@@ -6,13 +6,19 @@ export async function GET(request) {
     const cookieStore = await cookies()
     
     const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_ANON_KEY,
       {
         cookies: {
-          get(name) {
-            return cookieStore.get(name)?.value
-          },
+            get(name) {
+              return cookieStore.get(name)?.value;
+            },
+            set(name, value, options) {
+              cookieStore.set(name, value, options);
+            },
+            remove(name, options) {
+              cookieStore.delete(name, options);
+            },
         },
       }
     )
@@ -57,13 +63,19 @@ export async function POST(request) {
     const cookieStore = await cookies()
     
     const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_ANON_KEY,
       {
-        cookies: {
-          get(name) {
-            return cookieStore.get(name)?.value
-          },
+          cookies: {
+            get(name) {
+              return cookieStore.get(name)?.value;
+            },
+            set(name, value, options) {
+              cookieStore.set(name, value, options);
+            },
+            remove(name, options) {
+              cookieStore.delete(name, options);
+            },
         },
       }
     )

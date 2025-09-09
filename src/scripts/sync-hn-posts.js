@@ -4,7 +4,7 @@ import { HttpRequest } from '@aws-sdk/protocol-http';
 import { Sha256 } from '@aws-crypto/sha256-js';
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 )
 
@@ -145,8 +145,62 @@ export async function syncHnPosts(type = 'front_page', limit = 200) {
         created_at: new Date(story.time * 1000).toISOString(),
         text: story.text || ''
       }));
+    
+    // Fetch existing updated_posts to determine what needs to be updated or deleted
+    const { data: existingUpdatedPosts, error: updatedPostsError } = await supabase
+        .from('updated_posts')
+        .select('hn_id')
+        .eq('post_type', type);
 
-    // 批量插入主贴到 hn_posts 表
+    if (updatedPostsError) {
+        console.error('Error fetching existing updated_posts:', updatedPostsError);
+        return { error: updatedPostsError.message };
+    }
+
+    const existingUpdatedHnIds = new Set(existingUpdatedPosts.map(post => post.hn_id));
+
+    // Fetch descendants for all posts that are currently in updated_posts from hn_posts table
+    // This is needed to compare descendants for existing posts
+    const { data: existingHnPostsForComparison, error: hnPostsForComparisonError } = await supabase
+        .from('hn_posts')
+        .select('hn_id, descendants')
+        .in('hn_id', Array.from(existingUpdatedHnIds));
+
+    if (hnPostsForComparisonError) {
+        console.error('Error fetching existing hn_posts for comparison:', hnPostsForComparisonError);
+        return { error: hnPostsForComparisonError.message };
+    }
+
+    const existingHnPostsMap = new Map(existingHnPostsForComparison.map(post => [post.hn_id, post.descendants]));
+
+    // Process posts for updated_posts table
+    const updatedPostsToUpsert = [];
+    const hnIdsToConsiderForDeletion = new Set(existingUpdatedHnIds); // Keep track of existing IDs in updated_posts
+
+    for (const post of postsToInsert) {
+        const hnId = post.hn_id;
+        const currentDescendants = post.descendants;
+
+        if (existingUpdatedHnIds.has(hnId)) {
+            // This hnId was in updated_posts before, so remove it from consideration for deletion of "extra" items
+            hnIdsToConsiderForDeletion.delete(hnId);
+
+            // Case 2: ID already exists, compare descendants
+            const existingDescendants = existingHnPostsMap.get(hnId);
+            if (existingDescendants === currentDescendants) {
+                // Descendants are the same, update update_time, set need_update to false
+                updatedPostsToUpsert.push({ hn_id: hnId, update_time: new Date().toISOString(), post_type: type, need_update: false });
+            } else {
+                // Descendants are different, update update_time, set need_update to true
+                updatedPostsToUpsert.push({ hn_id: hnId, update_time: new Date().toISOString(), post_type: type, need_update: true });
+            }
+        } else {
+            // Case 1: New post ID, add to updated_posts with need_update: true
+            updatedPostsToUpsert.push({ hn_id: hnId, update_time: new Date().toISOString(), post_type: type, need_update: true });
+        }
+    }
+
+     // 批量插入主贴到 hn_posts 表
     if (postsToInsert.length > 0) {
       // Replace batch upsert with sequential insertion to preserve order
       for (const post of postsToInsert) {
@@ -160,6 +214,31 @@ export async function syncHnPosts(type = 'front_page', limit = 200) {
         }
       }
     }
+
+    // Perform batch upserts for updated_posts
+    if (updatedPostsToUpsert.length > 0) {
+        const { error } = await supabase
+            .from('updated_posts')
+            .upsert(updatedPostsToUpsert, { onConflict: 'hn_id,post_type' });
+        if (error) {
+            console.error('Error upserting into updated_posts:', error);
+        }
+    }
+
+    // Case 3: Handle extra hn_id in updated_posts (those remaining in hnIdsToConsiderForDeletion)
+    const hnIdsToRemoveFromUpdatedPosts = Array.from(hnIdsToConsiderForDeletion);
+
+    if (hnIdsToRemoveFromUpdatedPosts.length > 0) {
+        const { error } = await supabase
+            .from('updated_posts')
+            .delete()
+            .eq('post_type', type)
+            .in('hn_id', hnIdsToRemoveFromUpdatedPosts);
+        if (error) {
+            console.error('Error deleting extra hn_ids from updated_posts:', error);
+        }
+    }
+
 
     // 准备分类表的批量插入数据
     const now = Date.now();                     // 基准时间

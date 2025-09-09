@@ -31,6 +31,15 @@ export default function LoginModal({ isOpen, onClose, onRegisterClick }) {
       }
 
       setMessage('Login successful!')
+
+      // GA4 Event: Track successful email/password login
+      if (typeof window !== 'undefined' && window.gtag) {
+        window.gtag('event', 'login', {
+          method: 'Email',
+          email: email
+        });
+      }
+
       setTimeout(() => {
         onClose()
         router.push('/') // 明确导航回主页
@@ -65,6 +74,13 @@ export default function LoginModal({ isOpen, onClose, onRegisterClick }) {
 
       if (!response.ok) {
         throw new Error(data.error || 'OAuth login failed')
+      }
+
+      // GA4 Event: Track successful OAuth login
+      if (typeof window !== 'undefined' && window.gtag) {
+        window.gtag('event', 'login', {
+          method: provider, // Use the provider name (e.g., 'github', 'google')
+        });
       }
 
       // 重定向到 Supabase OAuth 页面
