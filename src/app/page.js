@@ -72,63 +72,64 @@ export default function Home({ initialType, session: dontMissSession, subscripti
   fetchSubscription()
 }, [currentSession]) // Depend on currentSession
 
-  // Dedicated useEffect for GA4 user_id and page_view management
+  // Dedicated useEffect for GTM user_id and page_view management
   useEffect(() => {
-    // Check if gtag is available before attempting to use it
-    if (typeof window === 'undefined' || !window.gtag) {
-      console.warn('GA4: gtag is not defined. Google Analytics 4 tracking might not be active.');
+    // Check if dataLayer is available before attempting to use it
+    if (typeof window === 'undefined' || !window.dataLayer) {
+      console.warn('GTM: dataLayer is not defined. Google Tag Manager tracking might not be active.');
       return;
     }
-
-    const GA_MEASUREMENT_ID = 'G-27NFWGZ38B'; // Your GA4 Measurement ID
-
-    // Function to send a page_view event
-    const sendPageView = (url) => {
-      console.log(`GA4: Sending page_view for URL: ${url}`);
-      window.gtag('event', 'page_view', {
-        page_path: url,
-        page_location: window.location.href,
-        page_title: document.title,
-      });
-    };
 
     // Handle initial page load
     if (currentSession?.user?.id) {
       const userIdToSet = currentSession.user.id;
-      console.log(`GA4: User logged in. Setting user_id=${userIdToSet} for ${GA_MEASUREMENT_ID}`);
+      console.log(`GTM: User logged in. Setting user_id=${userIdToSet}`);
       
-      window.gtag('config', GA_MEASUREMENT_ID, {
-        'user_id': userIdToSet,
-        'send_page_view': false // Ensure no automatic page_view from this config call
+      window.dataLayer.push({
+        'event': 'login_success',
+        'user_id': userIdToSet
       });
-      sendPageView(pathname); // Send initial page_view with user_id
+      window.dataLayer.push({
+        'event': 'page_view',
+        'page_path': pathname,
+        'page_location': window.location.href,
+        'page_title': document.title,
+        'user_id': userIdToSet
+      });
     } else {
-      console.log(`GA4: User logged out or no session. Clearing user_id for ${GA_MEASUREMENT_ID}`);
+      console.log(`GTM: User logged out or no session. Clearing user_id`);
       
-      window.gtag('config', GA_MEASUREMENT_ID, {
-        'user_id': undefined, // Clear user_id
-        'send_page_view': false // Ensure no automatic page_view from this config call
+      window.dataLayer.push({
+        'event': 'user_id_ready',
+        'user_id': undefined // Clear user_id
       });
-      sendPageView(pathname); // Send initial page_view without user_id
+      window.dataLayer.push({
+        'event': 'page_view',
+        'page_path': pathname,
+        'page_location': window.location.href,
+        'page_title': document.title,
+      });
     }
 
     // Handle client-side route changes
     const handleRouteChange = (url) => {
-      // Only send page_view if the user_id has been configured (or cleared)
-      // The user_id is already handled by the initial useEffect run based on currentSession.
-      // We just need to send the page_view for the new route.
-      sendPageView(url);
+      window.dataLayer.push({
+        'event': 'page_view',
+        'page_path': url,
+        'page_location': window.location.href,
+        'page_title': document.title,
+      });
     };
 
-    router.events.on('routeChangeComplete', handleRouteChange);
+    //router.events.on('routeChangeComplete', handleRouteChange);
 
     // Cleanup function for useEffect
     return () => {
-      router.events.off('routeChangeComplete', handleRouteChange);
-      console.log('GA4: Cleanup - routeChangeComplete event listener removed.');
+      //router.events.off('routeChangeComplete', handleRouteChange);
+      console.log('GTM: Cleanup - routeChangeComplete event listener removed.');
     };
 
-  }, [currentSession, pathname, router.events]); // Depend on currentSession, pathname, and router.events
+  }, [currentSession, pathname]); // Depend on currentSession, pathname, and router.events
 
   // 在组件顶部添加这个函数
   function getPostType(initialType, pathname) {
@@ -441,11 +442,7 @@ export default function Home({ initialType, session: dontMissSession, subscripti
       currentSetIsLoginOpen(true); // Use the appropriate setIsLoginOpen
       return;
     }
-    // GA4 Event: Track user reaction
-    if (typeof window !== 'undefined' && window.gtag) {
-      window.gtag('event', 'postInterestClick', {
-      });
-    }
+    
     try {
       // 首先尝试调用Cloudflare Worker接口
       const cloudflareWorkerUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_WORKER_URL || 'https://hpyhn.xyz/worker';
@@ -562,11 +559,6 @@ export default function Home({ initialType, session: dontMissSession, subscripti
       ...prev,
       [postId]: !prev[postId]
     }))
-    // GA4 Event: Track user reaction
-    if (typeof window !== 'undefined' && window.gtag) {
-      window.gtag('event', 'showPostTextClick', {
-      });
-    }
   }
 
   const toggleComments = async (postId) => {
@@ -581,11 +573,6 @@ export default function Home({ initialType, session: dontMissSession, subscripti
     if (newState && !liveComments[postId]) {
       //await fetchLiveComments(postId);
     }
-    // GA4 Event: Track user reaction
-    if (typeof window !== 'undefined' && window.gtag) {
-      window.gtag('event', 'commentsSummaryClick', {
-      });
-    }
   }
 
   // 新增切换摘要展开/收缩的函数
@@ -594,11 +581,6 @@ export default function Home({ initialType, session: dontMissSession, subscripti
       ...prev,
       [postId]: !prev[postId]
     }))
-    // GA4 Event: Track user reaction
-    if (typeof window !== 'undefined' && window.gtag) {
-      window.gtag('event', 'contentSummaryClick', {
-      });
-    }
   }
 
   const formatCommentText = (text) => {

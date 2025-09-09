@@ -32,14 +32,6 @@ export default function RegisterModal({ isOpen, onClose, onLoginClick }) {
       }
 
       setMessage('Signup successful! Please check your email for confirmation.')
-      
-      // GA4 Event: Track successful registration
-      if (typeof window !== 'undefined' && window.gtag) {
-        window.gtag('event', 'sign_up', {
-          method: 'Email', // Or 'Google', 'Facebook', etc., depending on your signup methods
-          email: email// You can add more parameters here, e.g., 'user_id': data.userId
-        });
-      }
 
       setTimeout(() => {
         onClose()

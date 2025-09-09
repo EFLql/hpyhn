@@ -8,13 +8,34 @@ const supabase = createClient(
 )
 
 // Helper function to send GA4 events from the server
-async function sendGa4Event(userId, eventName, eventParams) {
+async function sendGa4Event(userId, eventName, eventParams, gaClientId = null, gaSessionId = null) {
   const measurementId = process.env.GA_MEASUREMENT_ID;
   const apiSecret = process.env.GA_API_SECRET;
 
   if (!measurementId || !apiSecret) {
     console.warn('GA4 Measurement ID or API Secret not configured. Skipping GA4 event.');
     return;
+  }
+
+  // Use provided gaClientId, otherwise fallback to userId
+  const finalClientId = gaClientId || userId;
+
+  // Construct the GA4 event payload
+  const ga4Payload = {
+    client_id: finalClientId, // Use the extracted client_id or fallback
+    user_id: userId, // Always send user_id if available
+    events: [{
+      name: eventName,
+      params: eventParams,
+    }],
+  };
+
+  // Add session_id if available
+  if (gaSessionId) {
+    ga4Payload.events[0].params.session_id = gaSessionId;
+    // For server-side events, we also need to set the engagement time
+    // This is a simplified approach; a more robust solution might involve tracking session start times.
+    ga4Payload.events[0].params.engagement_time_msec = '1'; 
   }
 
   try {
@@ -25,14 +46,7 @@ async function sendGa4Event(userId, eventName, eventParams) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          client_id: userId, // Use userId as client_id for server-side events
-          user_id: userId, // Also send as user_id for cross-platform tracking
-          events: [{
-            name: eventName,
-            params: eventParams,
-          }],
-        }),
+        body: JSON.stringify(ga4Payload),
       }
     );
 
@@ -131,25 +145,53 @@ async function handleActiveSubscription(payload, verifiedSale) {
 
   // 从多个可能的位置提取 user_id
   let userId = null;
+  let gaClientId = null;
+  let gaSessionId = null;
   
   // 1. 从自定义字段中提取
   if (customFields.user_id) {
     userId = customFields.user_id;
+  }
+  // 提取 client_id 和 session_id
+  if (customFields.client_id) {
+    gaClientId = customFields.client_id;
+  }
+  if (customFields.session_id) {
+    gaSessionId = customFields.session_id;
   }
   
   // 2. 从 payload 直接字段中提取
   if (!userId && payload.user_id) {
     userId = payload.user_id;
   }
+  if (!gaClientId && payload.client_id) { // Check if client_id is directly in payload
+    gaClientId = payload.client_id;
+  }
+  if (!gaSessionId && payload.session_id) { // Check if session_id is directly in payload
+    gaSessionId = payload.session_id;
+  }
   
   // 3. 从 URL 参数中提取
   if (!userId && payload['url_params[user_id]']) {
     userId = payload['url_params[user_id]'];
   }
+  if (!gaClientId && payload['url_params[client_id]']) {
+    gaClientId = payload['url_params[client_id]'];
+  }
+  if (!gaSessionId && payload['url_params[session_id]']) {
+    gaSessionId = payload['url_params[session_id]'];
+  }
   
   // 4. 从 variants 中提取（如果 Gumroad 以这种方式发送）
   if (!userId && payload['variants[user_id]']) {
     userId = payload['variants[user_id]'];
+  }
+  // 检查 variants 中是否包含 client_id 或 session_id
+  if (!gaClientId && payload['variants[client_id]']) {
+    gaClientId = payload['variants[client_id]'];
+  }
+  if (!gaSessionId && payload['variants[session_id]']) {
+    gaSessionId = payload['variants[session_id]'];
   }
 
   // 确保必要的字段存在
@@ -159,6 +201,8 @@ async function handleActiveSubscription(payload, verifiedSale) {
   }
 
   console.log('Processing subscription for user:', userId)
+  console.log('GA4 Client ID:', gaClientId);
+  console.log('GA4 Session ID:', gaSessionId);
 
   // 计算当前周期结束日期（对于按月订阅）
   let currentPeriodEnd = null;
@@ -209,7 +253,7 @@ async function handleActiveSubscription(payload, verifiedSale) {
       product_name: payload.product_name,
       status: payload.refunded === 'true' ? 'refunded' : 'active',
       start_time: new Date().toISOString()
-    });
+    }, gaClientId, gaSessionId); // Pass client_id and session_id here
   }
 }
 
