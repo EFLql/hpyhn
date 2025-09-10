@@ -246,7 +246,7 @@ async function handleActiveSubscription(payload, verifiedSale) {
     console.error('Error upserting subscription:', error)
   } else {
     // Send GA4 purchase event after successful upsert
-    await sendGa4Event(userId, 'purchaseSuccess', {
+    await sendGa4Event(userId, 'purchase', {
       currency: payload.currency,
       value: parseFloat(payload.price) / 100, // Gumroad price is in cents
       transaction_id: payload.sale_id || payload.order_number,
