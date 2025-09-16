@@ -1,6 +1,6 @@
 import Head from 'next/head';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -12,6 +12,41 @@ export default function Home() {
   const [email, setEmail] = useState(''); // New state for email input
   const [isSubmittingEmail, setIsSubmittingEmail] = useState(false); // New state for email submission loading
   const [emailSubmitMessage, setEmailSubmitMessage] = useState(null); // New state for email submission message
+  const [turnstileToken, setTurnstileToken] = useState(''); // 新增 Turnstile token 状态
+  const turnstileWidgetRef = useRef(null);
+  // Turnstile 客户端渲染逻辑
+  useEffect(() => {
+    // 只在客户端执行
+    if (typeof window === 'undefined') return;
+    // 加载 Turnstile 脚本
+    if (!window.turnstile) {
+      const script = document.createElement('script');
+      script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
+      script.async = true;
+      document.body.appendChild(script);
+      script.onload = renderTurnstile;
+    } else {
+      renderTurnstile();
+    }
+
+    function renderTurnstile() {
+      if (window.turnstile && turnstileWidgetRef.current) {
+        window.turnstile.render(turnstileWidgetRef.current, {
+          sitekey: '0x4AAAAAAB1gi5HPX_NQ6ooE',
+          theme: 'dark',
+          callback: (token) => {
+            setTurnstileToken(token);
+          },
+        });
+      }
+    }
+    // 清理函数：卸载时销毁 widget
+    return () => {
+      if (turnstileWidgetRef.current) {
+        turnstileWidgetRef.current.innerHTML = '';
+      }
+    };
+  }, []);
 
   const handleAnalyzeClick = async () => {
     setIsLoading(true);
@@ -50,6 +85,10 @@ export default function Home() {
       setEmailSubmitMessage('Please enter a valid email address.');
       return;
     }
+    if (!turnstileToken) {
+      setEmailSubmitMessage('Please complete the security verification first.');
+      return;
+    }
     setIsSubmittingEmail(true);
 
     try {
@@ -58,7 +97,7 @@ export default function Home() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, turnstileToken }),
       });
 
       if (!response.ok) {
@@ -68,6 +107,11 @@ export default function Home() {
       const data = await response.json();
       setEmailSubmitMessage(data.message);
       setEmail(''); // Clear email input on success
+      setTurnstileToken(''); // 清空 token
+      // 重新渲染 Turnstile
+      if (window.turnstile && window.turnstile.render) {
+        window.turnstile.render('#turnstile-widget');
+      }
     } catch (e) {
       setEmailSubmitMessage('Failed to subscribe: ' + e.message);
     } finally {
@@ -315,6 +359,10 @@ export default function Home() {
             >
               {isSubmittingEmail ? 'Securing...' : 'Secure My Spot'}
             </button>
+          </div>
+          {/* Turnstile Widget (仅客户端渲染) */}
+          <div className="mt-4 flex justify-center">
+            <div ref={turnstileWidgetRef}></div>
           </div>
           {emailSubmitMessage && (
             <p className="text-center mt-4 text-sm">

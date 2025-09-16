@@ -1,3 +1,21 @@
+// In-memory rate limit store
+const rateLimitStore = {};
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
+const RATE_LIMIT_MAX = 10; // max requests per window per IP
+
+function checkRateLimit(ip) {
+  const now = Date.now();
+  if (!rateLimitStore[ip]) {
+    rateLimitStore[ip] = [];
+  }
+  // Remove expired timestamps
+  rateLimitStore[ip] = rateLimitStore[ip].filter(ts => now - ts < RATE_LIMIT_WINDOW_MS);
+  if (rateLimitStore[ip].length >= RATE_LIMIT_MAX) {
+    return false;
+  }
+  rateLimitStore[ip].push(now);
+  return true;
+}
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -7,6 +25,11 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export default async function handler(req, res) {
   if (req.method === 'POST') {
+    // Rate limiting by IP
+    const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress || 'unknown';
+    if (!checkRateLimit(ip)) {
+      return res.status(429).json({ error: 'Too many requests. Please try again later.' });
+    }
     const { url } = req.body;
 
     if (!url) {
