@@ -25,12 +25,15 @@
     "jsdom": "^22.1.0",
     "@aws-sdk/signature-v4": "^3.0.0",
     "@aws-sdk/protocol-http": "^3.0.0",
-    "@aws-crypto/sha256-js": "^5.0.0"
+    "@aws-crypto/sha256-js": "^5.0.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@vercel/node": "^2.3.0",
     "autoprefixer": "^10.4.16",
     "postcss": "^8.4.31",
-    "tailwindcss": "^3.3.3"
+    "tailwindcss": "^3.3.3",
+    "@tailwindcss/typography": "^0.5.16"
   }
 }

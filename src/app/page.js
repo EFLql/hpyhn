@@ -7,6 +7,8 @@ import RegisterModal from '../components/RegisterModal'
 import DOMPurify from 'dompurify';
 import { useRouter, usePathname } from 'next/navigation'
 import FacebookReaction from '../components/FacebookReaction';
+import ReactMarkdown from 'react-markdown'; // Import ReactMarkdown
+import remarkGfm from 'remark-gfm'; // Import remarkGfm
 
 export default function Home({ initialType, session: dontMissSession, subscription: dontMissSubscription, loading: dontMissLoading, isLoginOpen: dontMissIsLoginOpen, setIsLoginOpen: setDontMissIsLoginOpen }) {
   const router = useRouter()
@@ -624,26 +626,58 @@ export default function Home({ initialType, session: dontMissSession, subscripti
   }
 
   // Helper function to parse summary_comments
-  const parseSummaryComments = (summaryCommentsString) => {
-    if (!summaryCommentsString) return null;
+  const parseSummaryComments = (summaryCommentsInput) => {
+    let clusterSummaries = [];
+    let overallPostSummary = null;
 
-    // If it's already an object (e.g., already parsed JSON), return it if it's an array
-    if (typeof summaryCommentsString === 'object') {
-      return Array.isArray(summaryCommentsString) ? summaryCommentsString : [];
+    if (!summaryCommentsInput) {
+      return { cluster_summaries: clusterSummaries, overall_comments_summary_with_sentiment: overallPostSummary };
     }
 
-    // If it's a string, try to parse it as JSON
-    if (typeof summaryCommentsString === 'string') {
-      try {
-        const parsed = JSON.parse(summaryCommentsString);
-        return Array.isArray(parsed) ? parsed : [];
-      } catch (e) {
-        console.error("Error parsing summary_comments string:", e);
-        return [];
+    // Case 1: Input is already an object
+    if (typeof summaryCommentsInput === 'object') {
+      // New format: { cluster_summaries: [], overall_comments_summary_with_sentiment: "..." }
+      if (summaryCommentsInput.cluster_summaries !== undefined) {
+        overallPostSummary = typeof summaryCommentsInput.overall_comments_summary_with_sentiment === 'string' ? 
+                             summaryCommentsInput.overall_comments_summary_with_sentiment
+                               .replace(/^```markdown\s*\n?/, '') // Remove leading ```markdown and optional newline
+                               .replace(/\n?```$/, '') // Remove optional newline and trailing ```
+                               .replace(/\n\n/g, '\n') // Replace any sequence of newline, optional whitespace, and two or more newlines with two newlines
+                               .trim() : // Trim any remaining leading/trailing whitespace
+                             null;
+        clusterSummaries = Array.isArray(summaryCommentsInput.cluster_summaries) ? summaryCommentsInput.cluster_summaries : [];
+      }
+      // Old format: directly an array
+      else if (Array.isArray(summaryCommentsInput)) {
+        clusterSummaries = summaryCommentsInput;
       }
     }
-    
-    return [];
+    // Case 2: Input is a string, try to parse it as JSON
+    else if (typeof summaryCommentsInput === 'string') {
+      try {
+        const parsed = JSON.parse(summaryCommentsInput);
+        // New format after parsing: { cluster_summaries: [], overall_comments_summary_with_sentiment: "..." }
+        if (parsed.cluster_summaries !== undefined) {
+          overallPostSummary = typeof parsed.overall_comments_summary_with_sentiment === 'string' ? 
+                               parsed.overall_comments_summary_with_sentiment
+                                 .replace(/^```markdown\s*\n?/, '') // Remove leading ```markdown and optional newline
+                                 .replace(/\n?```$/, '') // Remove optional newline and trailing ```
+                                 .replace(/\n\n/g, '\n') // Replace any sequence of newline, optional whitespace, and two or more newlines with two newlines
+                                 .trim() : // Trim any remaining leading/trailing whitespace
+                               null;
+          clusterSummaries = Array.isArray(parsed.cluster_summaries) ? parsed.cluster_summaries : [];
+        }
+        // Old format after parsing: directly an array
+        else if (Array.isArray(parsed)) {
+          clusterSummaries = parsed;
+        }
+      } catch (e) {
+        console.error("Error parsing summary_comments string:", e);
+        // If parsing fails, treat as no valid comments
+      }
+    }
+    //console.log(`overallPostSummary:${overallPostSummary}`)
+    return { cluster_summaries: clusterSummaries, overall_comments_summary_with_sentiment: overallPostSummary };
   };
 
   // Determine which login modal state to use
@@ -1190,11 +1224,10 @@ export default function Home({ initialType, session: dontMissSession, subscripti
                         )}
                         {/* Comments show/hide logic */}
                         {expandedComments[post.hn_id] && (() => {
-                          const parsedSummaryComments = parseSummaryComments(post.summary_comments);
+                          const { cluster_summaries, overall_comments_summary_with_sentiment } = parseSummaryComments(post.summary_comments);
                           
                           // Check if there are comments but no summary comments due to subscription status
-                          if (parsedSummaryComments !== null && 
-                            parsedSummaryComments.length === 0 &&
+                          if (cluster_summaries.length === 0 && !overall_comments_summary_with_sentiment &&
                             (post.comments_count > 0 || post.descendants > 0)
                           ) {
                             return (
@@ -1213,7 +1246,7 @@ export default function Home({ initialType, session: dontMissSession, subscripti
                           }
 
                           // Sort the comment categories (existing logic)
-                          const sortedSummaryComments = parsedSummaryComments ? [...parsedSummaryComments].sort((a, b) => {
+                          const sortedSummaryComments = cluster_summaries ? [...cluster_summaries].sort((a, b) => {
                             // Prioritize non-negative labels over -1
                             if (a.label === -1 && b.label !== -1) return 1;
                             if (a.label !== -1 && b.label === -1) return -1;
@@ -1222,57 +1255,82 @@ export default function Home({ initialType, session: dontMissSession, subscripti
                             return b.num_comments - a.num_comments;
                           }) : [];
 
-                          return sortedSummaryComments.length > 0 ? (
+                          return (overall_comments_summary_with_sentiment || sortedSummaryComments.length > 0) ? (
                             <div className="mt-2 ml-6 space-y-4 border-l-2 pl-2 border-orange-200">
-                              <div className="text-xs font-medium text-orange-800 mb-1">Comments Summary:</div>
-                              {sortedSummaryComments.map((commentCategory, categoryIndex) => (
-                                <div key={categoryIndex} className="bg-orange-50 p-3 rounded">
-                                  <div className="font-bold text-sm text-orange-700 mb-1">
-                                    Category {commentCategory.label === -1 ? 'Uncategorized' : commentCategory.label} ({commentCategory.num_comments} comments)
+                              {overall_comments_summary_with_sentiment && (
+                                <div className="bg-blue-50 p-3 rounded border border-blue-200">
+                                  <div className="text-xs font-medium text-blue-800 mb-1">Overall comments Summary with Sentiment:</div>
+                                  <div
+                                    className="text-xs text-gray-700 whitespace-pre-wrap break-words prose prose-sm max-w-none"
+                                    //dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(overall_comments_summary_with_sentiment) }}
+                                  >
+                                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                      {overall_comments_summary_with_sentiment}
+                                    </ReactMarkdown>
                                   </div>
-                                  <div className="mt-1 p-2 bg-blue-50 rounded border border-blue-200">
-                                    <div className="text-xs font-medium text-blue-800 mb-1">Category Summary:</div>
-                                    <div className="text-xs text-gray-700">
-                                      {commentCategory.summary || 'No summary available.'}
-                                    </div>
-                                  </div>
-                                  {commentCategory.comments && commentCategory.comments.length > 0 && (
-                                    <div className="space-y-2">
-                                      <div className="text-xs font-medium text-gray-600 p-2">Typical Comments below:</div>
-                                      {commentCategory.comments.map((comment, commentIndex) => (
-                                        <div key={commentIndex} className="text-xs text-gray-600 border-t border-gray-200 pt-2">
-                                          <div className="font-medium text-gray-800">
-                                            {comment.author || 'anonymous'} · 
-                                            {timeago.format(new Date(comment.created_at))}
-                                            {comment.hn_id && (
-                                              <a
-                                                href={`https://news.ycombinator.com/item?id=${comment.hn_id}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="ml-1 text-orange-600 hover:underline"
-                                              >
-                                                view on HN
-                                              </a>
-                                            )}
-                                          </div>
-                                          {comment.summary && (
-                                            <div className="mt-1 p-2 bg-blue-50 rounded border border-blue-200">
-                                              <div className="text-xs font-medium text-blue-800 mb-1">Comment Summary:</div>
-                                              <div className="text-xs text-gray-700">
-                                                {comment.summary}
-                                              </div>
-                                            </div>
-                                          )}
-                                          <div 
-                                            className="mt-1 whitespace-pre-wrap break-words prose prose-sm max-w-none"
-                                            dangerouslySetInnerHTML={{ __html: formatCommentText(comment.text) }}
-                                          />
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
                                 </div>
-                              ))}
+                              )}
+                              {sortedSummaryComments.length > 0 && (
+                                <>
+                                  <div className="text-xs font-medium text-orange-800 mb-1">Comments Category:</div>
+                                  {sortedSummaryComments.map((commentCategory, categoryIndex) => (
+                                    <div key={categoryIndex} className="bg-orange-50 p-3 rounded">
+                                      <div className="font-bold text-sm text-orange-700 mb-1">
+                                        Category {commentCategory.label === -1 ? 'Uncategorized' : commentCategory.label} ({commentCategory.num_comments} comments)
+                                      </div>
+                                      {commentCategory.theme && (
+                                        <div className="mt-1 p-2 bg-purple-50 rounded border border-purple-200">
+                                          <div className="text-xs font-medium text-purple-800 mb-1">Category Theme:</div>
+                                          <div className="text-xs text-gray-700">
+                                            {commentCategory.theme}
+                                          </div>
+                                        </div>
+                                      )}
+                                      <div className="mt-1 p-2 bg-blue-50 rounded border border-blue-200">
+                                        <div className="text-xs font-medium text-blue-800 mb-1">Category Summary:</div>
+                                        <div className="text-xs text-gray-700">
+                                          {commentCategory.summary || 'No summary available.'}
+                                        </div>
+                                      </div>
+                                      {commentCategory.comments && commentCategory.comments.length > 0 && (
+                                        <div className="space-y-2">
+                                          <div className="text-xs font-medium text-gray-600 p-2">Typical Comments below:</div>
+                                          {commentCategory.comments.map((comment, commentIndex) => (
+                                            <div key={commentIndex} className="text-xs text-gray-600 border-t border-gray-200 pt-2">
+                                              <div className="font-medium text-gray-800">
+                                                {comment.author || 'anonymous'} · 
+                                                {timeago.format(new Date(comment.created_at))}
+                                                {comment.hn_id && (
+                                                  <a
+                                                    href={`https://news.ycombinator.com/item?id=${comment.hn_id}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="ml-1 text-orange-600 hover:underline"
+                                                  >
+                                                    view on HN
+                                                  </a>
+                                                )}
+                                              </div>
+                                              {comment.summary && (
+                                                <div className="mt-1 p-2 bg-blue-50 rounded border border-blue-200">
+                                                  <div className="text-xs font-medium text-blue-800 mb-1">Comment Summary:</div>
+                                                  <div className="text-xs text-gray-700">
+                                                    {comment.summary}
+                                                  </div>
+                                                </div>
+                                              )}
+                                              <div 
+                                                className="mt-1 whitespace-pre-wrap break-words max-w-none"
+                                                dangerouslySetInnerHTML={{ __html: formatCommentText(comment.text) }}
+                                              />
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </>
+                              )}
                             </div>
                           ) : (
                             <div className="text-xs text-gray-500 mt-2 ml-6">
@@ -1527,99 +1585,123 @@ export default function Home({ initialType, session: dontMissSession, subscripti
                           )}
                           {/* Comments show/hide logic */}
                           {expandedComments[post.hn_id] && (() => {
-                            const parsedSummaryComments = parseSummaryComments(post.summary_comments);
-                            
-                            // Check if there are comments but no summary comments due to subscription status
-                            if (parsedSummaryComments !== null && 
-                              parsedSummaryComments.length === 0 &&
-                              (post.comments_count > 0 || post.descendants > 0)
-                            ) {
-                              return (
-                                <div className="mt-2 ml-6 p-3 bg-red-50 rounded border border-red-200 text-red-800 text-xs">
-                                  <p className="font-medium mb-1">Comments Summary is a Premium Feature</p>
-                                  <p>
-                                    To view summarized comments and understand the key discussions quickly,
-                                    please{' '}
-                                    <Link href="/account" className="text-blue-600 hover:underline">
-                                      subscribe to unlock this feature
-                                    </Link>
-                                    . New users get a 14-day free trial!
-                                  </p>
-                                </div>
-                              );
-                            }
-
-                            // Sort the comment categories (existing logic)
-                            const sortedSummaryComments = parsedSummaryComments ? [...parsedSummaryComments].sort((a, b) => {
-                              // Prioritize non-negative labels over -1
-                              if (a.label === -1 && b.label !== -1) return 1;
-                              if (a.label !== -1 && b.label === -1) return -1;
-                              
-                              // Then sort by num_comments in descending order
-                              return b.num_comments - a.num_comments;
-                            }) : [];
-
-                            return sortedSummaryComments.length > 0 ? (
-                              <div className="mt-2 ml-6 space-y-4 border-l-2 pl-2 border-orange-200">
-                                <div className="text-xs font-medium text-orange-800 mb-1">Comments Summary:</div>
-                                {sortedSummaryComments.map((commentCategory, categoryIndex) => (
-                                  <div key={categoryIndex} className="bg-orange-50 p-3 rounded">
-                                    <div className="font-bold text-sm text-orange-700 mb-1">
-                                      Category {commentCategory.label === -1 ? 'Uncategorized' : commentCategory.label} ({commentCategory.num_comments} comments)
-                                    </div>
-                                    <div className="mt-1 p-2 bg-blue-50 rounded border border-blue-200">
-                                      <div className="text-xs font-medium text-blue-800 mb-1">Category Summary:</div>
-                                      <div className="text-xs text-gray-700">
-                                        {commentCategory.summary || 'No summary available.'}
-                                      </div>
-                                    </div>
-                                    {commentCategory.comments && commentCategory.comments.length > 0 && (
-                                      <div className="space-y-2">
-                                        <div className="text-xs font-medium text-gray-600 p-2">Typical Comments below:</div>
-                                        {commentCategory.comments.map((comment, commentIndex) => (
-                                          <div key={commentIndex} className="text-xs text-gray-600 border-t border-gray-200 pt-2">
-                                            <div className="font-medium text-gray-800">
-                                              {comment.author || 'anonymous'} · 
-                                              {timeago.format(new Date(comment.created_at))}
-                                              {comment.hn_id && (
-                                                <a
-                                                  href={`https://news.ycombinator.com/item?id=${comment.hn_id}`}
-                                                  target="_blank"
-                                                  rel="noopener noreferrer"
-                                                  className="ml-1 text-orange-600 hover:underline"
-                                                >
-                                                  view on HN
-                                                </a>
-                                              )}
-                                            </div>
-                                            {comment.summary && (
-                                              <div className="mt-1 p-2 bg-blue-50 rounded border border-blue-200">
-                                                <div className="text-xs font-medium text-blue-800 mb-1">Comment Summary:</div>
-                                                <div className="text-xs text-gray-700">
-                                                  {comment.summary}
-                                                </div>
-                                              </div>
-                                            )}
-                                            <div 
-                                              className="mt-1 whitespace-pre-wrap break-words prose prose-sm max-w-none"
-                                              dangerouslySetInnerHTML={{ __html: formatCommentText(comment.text) }}
-                                            />
-                                          </div>
-                                        ))}
-                                      </div>
-                                    )}
-                                  </div>
-                                ))}
+                          const { cluster_summaries, overall_comments_summary_with_sentiment } = parseSummaryComments(post.summary_comments);
+                          
+                          // Check if there are comments but no summary comments due to subscription status
+                          if (cluster_summaries.length === 0 && !overall_comments_summary_with_sentiment &&
+                            (post.comments_count > 0 || post.descendants > 0)
+                          ) {
+                            return (
+                              <div className="mt-2 ml-6 p-3 bg-red-50 rounded border border-red-200 text-red-800 text-xs">
+                                <p className="font-medium mb-1">Comments Summary is a Premium Feature</p>
+                                <p>
+                                  To view summarized comments and understand the key discussions quickly,
+                                  please{' '}
+                                  <Link href="/account" className="text-blue-600 hover:underline">
+                                    subscribe to unlock this feature
+                                  </Link>
+                                  . New users get a 14-day free trial!
+                                </p>
                               </div>
-                            ) : (
-                              <div className="text-xs text-gray-500 mt-2 ml-6">
+                            );
+                          }
+
+                          // Sort the comment categories (existing logic)
+                          const sortedSummaryComments = cluster_summaries ? [...cluster_summaries].sort((a, b) => {
+                            // Prioritize non-negative labels over -1
+                            if (a.label === -1 && b.label !== -1) return 1;
+                            if (a.label !== -1 && b.label === -1) return -1;
+                            
+                            // Then sort by num_comments in descending order
+                            return b.num_comments - a.num_comments;
+                          }) : [];
+
+                          return (overall_comments_summary_with_sentiment || sortedSummaryComments.length > 0) ? (
+                            <div className="mt-2 ml-6 space-y-4 border-l-2 pl-2 border-orange-200">
+                              {overall_comments_summary_with_sentiment && (
+                                <div className="bg-blue-50 p-3 rounded border border-blue-200">
+                                  <div className="text-xs font-medium text-blue-800 mb-1">Overall comments Summary with Sentiment:</div>
+                                  <div
+                                    className="text-xs text-gray-700 whitespace-pre-wrap break-words prose prose-sm max-w-none"
+                                    //dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(overall_comments_summary_with_sentiment) }}
+                                  >
+                                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                      {overall_comments_summary_with_sentiment}
+                                    </ReactMarkdown>
+                                  </div>
+                                </div>
+                              )}
+                              {sortedSummaryComments.length > 0 && (
+                                <>
+                                  <div className="text-xs font-medium text-orange-800 mb-1">Comments Category:</div>
+                                  {sortedSummaryComments.map((commentCategory, categoryIndex) => (
+                                    <div key={categoryIndex} className="bg-orange-50 p-3 rounded">
+                                      <div className="font-bold text-sm text-orange-700 mb-1">
+                                        Category {commentCategory.label === -1 ? 'Uncategorized' : commentCategory.label} ({commentCategory.num_comments} comments)
+                                      </div>
+                                      {commentCategory.theme && (
+                                        <div className="mt-1 p-2 bg-purple-50 rounded border border-purple-200">
+                                          <div className="text-xs font-medium text-purple-800 mb-1">Category Theme:</div>
+                                          <div className="text-xs text-gray-700">
+                                            {commentCategory.theme}
+                                          </div>
+                                        </div>
+                                      )}
+                                      <div className="mt-1 p-2 bg-blue-50 rounded border border-blue-200">
+                                        <div className="text-xs font-medium text-blue-800 mb-1">Category Summary:</div>
+                                        <div className="text-xs text-gray-700">
+                                          {commentCategory.summary || 'No summary available.'}
+                                        </div>
+                                      </div>
+                                      {commentCategory.comments && commentCategory.comments.length > 0 && (
+                                        <div className="space-y-2">
+                                          <div className="text-xs font-medium text-gray-600 p-2">Typical Comments below:</div>
+                                          {commentCategory.comments.map((comment, commentIndex) => (
+                                            <div key={commentIndex} className="text-xs text-gray-600 border-t border-gray-200 pt-2">
+                                              <div className="font-medium text-gray-800">
+                                                {comment.author || 'anonymous'} · 
+                                                {timeago.format(new Date(comment.created_at))}
+                                                {comment.hn_id && (
+                                                  <a
+                                                    href={`https://news.ycombinator.com/item?id=${comment.hn_id}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="ml-1 text-orange-600 hover:underline"
+                                                  >
+                                                    view on HN
+                                                  </a>
+                                                )}
+                                              </div>
+                                              {comment.summary && (
+                                                <div className="mt-1 p-2 bg-blue-50 rounded border border-blue-200">
+                                                  <div className="text-xs font-medium text-blue-800 mb-1">Comment Summary:</div>
+                                                  <div className="text-xs text-gray-700">
+                                                    {comment.summary}
+                                                  </div>
+                                                </div>
+                                              )}
+                                              <div 
+                                                className="mt-1 whitespace-pre-wrap break-words max-w-none"
+                                                dangerouslySetInnerHTML={{ __html: formatCommentText(comment.text) }}
+                                              />
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="text-xs text-gray-500 mt-2 ml-6">
                               { (post.comments_count > 0 || post.descendants > 0) ? 
                                 'No comments analysis available for this post now.' : 
                                 'No comments available for this post.' 
                               }
                             </div>
-                            );
-                          })()}
+                          );
+                        })()}
                         </li>
                     ))}
                   </ol>
