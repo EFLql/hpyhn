@@ -1750,10 +1750,7 @@ export default function Home({ initialType, session: dontMissSession, subscripti
       </main>
       
       <footer className="text-center py-4 text-xs text-gray-500">
-        <Link href="/submit" className="hover:underline">submit</Link> | 
-        <Link href="/guidelines" className="hover:underline ml-1">guidelines</Link> | 
-        <Link href="/faq" className="hover:underline ml-1">FAQ</Link> | 
-        <Link href="/api" className="hover:underline ml-1">API</Link>
+        <Link href="/blog/" className="hover:underline">blog</Link>  
       </footer>
 
       <LoginModal 
