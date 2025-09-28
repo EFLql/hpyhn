@@ -386,22 +386,25 @@ export default function Home({ initialType, session: dontMissSession, subscripti
           if (type === 'dont-miss') {
             setDontMissCount(data.length); // Update count for 'dont-miss'
           }
+          // 默认展开第一条帖子的评论摘要和内容摘要
+          if (data.length > 0) {
+            const firstPostHnId = data[0].hn_id;
+            setExpandedComments(prev => ({ ...prev, [firstPostHnId]: true }));
+            setExpandedSummaries(prev => ({ ...prev, [firstPostHnId]: true }));
+          } else {
+            // 如果没有帖子，确保评论和摘要状态被清空
+            setExpandedComments({});
+            setExpandedSummaries({});
+          }
         }  else {
             console.error('Failed to fetch posts from backend:', fallbackData.error)
             setPosts([])
             if (type === 'dont-miss') {
               setDontMissCount(0); // Reset count for 'dont-miss'
             }
-            // 默认展开第一条帖子的评论摘要和内容摘要
-            if (data.length > 0) {
-              const firstPostHnId = data[0].hn_id;
-              setExpandedComments(prev => ({ ...prev, [firstPostHnId]: true }));
-              setExpandedSummaries(prev => ({ ...prev, [firstPostHnId]: true }));
-            } else {
-              // 如果没有帖子，确保评论和摘要状态被清空
-              setExpandedComments({});
-              setExpandedSummaries({});
-            }
+            // 如果发生错误，确保评论和摘要状态被清空
+            setExpandedComments({});
+            setExpandedSummaries({});
           }
       } catch (error) {
         // 如果Cloudflare Worker接口网络错误，尝试回退到后端接口
