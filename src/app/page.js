@@ -139,6 +139,7 @@ export default function Home({ initialType, session: dontMissSession, subscripti
     if (pathname === '/newest') return 'newest';
     if (pathname === '/ask') return 'ask';
     if (pathname === '/show') return 'show';
+    if (pathname === '/weekly') return 'weekly'; // Add this line
     if (pathname === '/dont-miss') return 'dont-miss';
     if (pathname === '/favorites') return 'favorites'; // Add this line
     return 'front-page';
@@ -375,7 +376,12 @@ export default function Home({ initialType, session: dontMissSession, subscripti
         }
         // 首先尝试调用Cloudflare Worker接口
         const cloudflareWorkerUrl = process.env.NEXT_PUBLIC_CLOUDFLARE_WORKER_URL || 'https://hpyhn.xyz/worker';
-        const response = await fetch(`${cloudflareWorkerUrl}/api/posts?type=${type}&user_id=${user_id}`)
+        let response;
+        if (type === 'weekly') {
+          response = await fetch(`/api/weekly`)
+        } else {
+          response = await fetch(`${cloudflareWorkerUrl}/api/posts?type=${type}&user_id=${user_id}`)
+        }
         const data = await response.json()
         //console.Console.log('Fetched posts:', data)
         if (response.ok) {
@@ -873,6 +879,10 @@ export default function Home({ initialType, session: dontMissSession, subscripti
             <Link href="/show" className="text-white hover:underline"
               onClick={() => setCurrentPage(1)}>
               show
+            </Link>
+            <Link href="/weekly" className="text-white hover:underline"
+              onClick={() => setCurrentPage(1)}>
+              weekly
             </Link>
             {/* 收藏项 - 在所有设备上可见 */}
             {currentSession && (
