@@ -662,7 +662,7 @@ export default function Home({ initialType, session: dontMissSession, subscripti
     // Case 1: Input is already an object
     if (typeof summaryCommentsInput === 'object') {
       // New format: { cluster_summaries: [], overall_comments_summary_with_sentiment: "..." }
-      if (summaryCommentsInput.cluster_summaries !== undefined) {
+      
         overallPostSummary = typeof summaryCommentsInput.overall_comments_summary_with_sentiment === 'string' ? 
                              summaryCommentsInput.overall_comments_summary_with_sentiment
                                .replace(/^```markdown\s*\n?/, '') // Remove leading ```markdown and optional newline
@@ -670,6 +670,7 @@ export default function Home({ initialType, session: dontMissSession, subscripti
                                .replace(/\n\n/g, '\n') // Replace any sequence of newline, optional whitespace, and two or more newlines with two newlines
                                .trim() : // Trim any remaining leading/trailing whitespace
                              null;
+      if (summaryCommentsInput.cluster_summaries !== undefined) {
         clusterSummaries = Array.isArray(summaryCommentsInput.cluster_summaries) ? summaryCommentsInput.cluster_summaries : [];
       }
       // Old format: directly an array
@@ -682,7 +683,7 @@ export default function Home({ initialType, session: dontMissSession, subscripti
       try {
         const parsed = JSON.parse(summaryCommentsInput);
         // New format after parsing: { cluster_summaries: [], overall_comments_summary_with_sentiment: "..." }
-        if (parsed.cluster_summaries !== undefined) {
+        
           overallPostSummary = typeof parsed.overall_comments_summary_with_sentiment === 'string' ? 
                                parsed.overall_comments_summary_with_sentiment
                                  .replace(/^```markdown\s*\n?/, '') // Remove leading ```markdown and optional newline
@@ -690,6 +691,7 @@ export default function Home({ initialType, session: dontMissSession, subscripti
                                  .replace(/\n\n/g, '\n') // Replace any sequence of newline, optional whitespace, and two or more newlines with two newlines
                                  .trim() : // Trim any remaining leading/trailing whitespace
                                null;
+        if (parsed.cluster_summaries !== undefined) {
           clusterSummaries = Array.isArray(parsed.cluster_summaries) ? parsed.cluster_summaries : [];
         }
         // Old format after parsing: directly an array
@@ -1256,8 +1258,7 @@ export default function Home({ initialType, session: dontMissSession, subscripti
                           const { cluster_summaries, overall_comments_summary_with_sentiment } = parseSummaryComments(post.summary_comments);
                           
                           // Check if there are comments but no summary comments due to subscription status
-                          if (cluster_summaries.length === 0 && !overall_comments_summary_with_sentiment &&
-                            (post.comments_count > 0 || post.descendants > 0)
+                          if (!overall_comments_summary_with_sentiment && post.summary_comments
                           ) {
                             return (
                               <div className="mt-2 ml-6 p-3 bg-red-50 rounded border border-red-200 text-red-800 text-xs">
@@ -1290,7 +1291,7 @@ export default function Home({ initialType, session: dontMissSession, subscripti
                                 <div className="bg-blue-50 p-3 rounded border border-blue-200">
                                   <div className="text-xs font-medium text-blue-800 mb-1">Overall comments Summary with Sentiment:</div>
                                   <div
-                                    className="text-xs text-gray-700 whitespace-pre-wrap break-words prose prose-sm max-w-none"
+                                    className="text-xs text-gray-700 break-words prose prose-sm max-w-none"
                                     //dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(overall_comments_summary_with_sentiment) }}
                                   >
                                       <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -1617,8 +1618,7 @@ export default function Home({ initialType, session: dontMissSession, subscripti
                           const { cluster_summaries, overall_comments_summary_with_sentiment } = parseSummaryComments(post.summary_comments);
                           
                           // Check if there are comments but no summary comments due to subscription status
-                          if (cluster_summaries.length === 0 && !overall_comments_summary_with_sentiment &&
-                            (post.comments_count > 0 || post.descendants > 0)
+                          if (!overall_comments_summary_with_sentiment && post.summary_comments
                           ) {
                             return (
                               <div className="mt-2 ml-6 p-3 bg-red-50 rounded border border-red-200 text-red-800 text-xs">
@@ -1651,7 +1651,7 @@ export default function Home({ initialType, session: dontMissSession, subscripti
                                 <div className="bg-blue-50 p-3 rounded border border-blue-200">
                                   <div className="text-xs font-medium text-blue-800 mb-1">Overall comments Summary with Sentiment:</div>
                                   <div
-                                    className="text-xs text-gray-700 whitespace-pre-wrap break-words prose prose-sm max-w-none"
+                                    className="text-xs text-gray-700 break-words prose prose-sm max-w-none"
                                     //dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(overall_comments_summary_with_sentiment) }}
                                   >
                                       <ReactMarkdown remarkPlugins={[remarkGfm]}>
