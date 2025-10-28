@@ -3,7 +3,8 @@ import ReactMarkdown from 'react-markdown'; // Import ReactMarkdown
 import remarkGfm from 'remark-gfm'; // Import remarkGfm
 
 async function getPost(id) {
-  const res = await fetch(`/api/posts?hn_id=${id}`);
+  const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000';
+  const res = await fetch(`${baseUrl}/api/posts?hn_id=${id}`);
   if (!res.ok) {
     // This will activate the closest `error.js` Error Boundary
     throw new Error('Failed to fetch data');
