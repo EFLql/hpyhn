@@ -1145,6 +1145,10 @@ export default function Home({ initialType, session: dontMissSession, subscripti
                                   view on HN
                                 </a>
                               )}
+                              {/* Hidden link for SEO */}
+                              <Link href={`/posts/${post.hn_id}`} style={{ display: 'none' }}>
+                                {post.title}
+                              </Link>
                             </div>
                             
                             {/* Modify keyword display section, limit to maximum 12 keywords */}
@@ -1505,6 +1509,10 @@ export default function Home({ initialType, session: dontMissSession, subscripti
                                     view on HN
                                   </a>
                                 )}
+                                {/* Hidden link for SEO */}
+                                <Link href={`/posts/${post.hn_id}`} style={{ display: 'none' }}>
+                                  {post.title}
+                                </Link>
                               </div>
                               
                               {/* Modify keyword display section, limit to maximum 12 keywords */}

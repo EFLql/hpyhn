@@ -19,11 +19,54 @@ export async function GET(request) {
   // 注意：这个路由不需要用户认证，因为它是获取公开的帖子数据
   const { searchParams } = new URL(request.url)
   const type = searchParams.get('type') || 'front-page'
+  const hn_id = searchParams.get('hn_id')
   const limit = searchParams.get('limit') || 60
   
   try {
     let query
     let tableName
+
+    if (hn_id) {
+      // If an ID is provided, fetch a single post from hn_posts table
+      const { data, error } = await supabase
+        .from('hn_posts')
+        .select(`
+          id,
+          hn_id,
+          title,
+          url,
+          points,
+          created_at,
+          descendants,
+          user_id,
+          text,
+          content_summary,
+          summary_comments
+        `)
+        .eq('hn_id', hn_id)
+        .single(); // Use .single() to get a single record
+
+      if (error) throw error;
+
+      if (!data) {
+        return new Response(JSON.stringify({ error: 'Post not found' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+      }
+
+      const formattedPost = {
+        ...data,
+        source: 'hn',
+        comments_count: data.descendants,
+        text: data.text,
+        user: { username: data.user_id || 'anonymous' },
+        time: new Date(data.created_at).getTime() / 1000, // Convert to Unix timestamp
+        content: data.text || data.content_summary, // Use text or summary as content
+      };
+
+      return new Response(
+        JSON.stringify(formattedPost),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
     
     switch (type) {
       case 'news':
