@@ -4,9 +4,14 @@ import remarkGfm from 'remark-gfm'; // Import remarkGfm
 
 async function getPost(id) {
   const baseUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000';
-  const res = await fetch(`${baseUrl}/api/posts?hn_id=${id}`);
+  const apiUrl = `${baseUrl}/api/posts?hn_id=${id}`;
+  console.log(`Fetching from: ${apiUrl}`); // Log the URL being fetched
+
+  const res = await fetch(apiUrl);
+
   if (!res.ok) {
-    // This will activate the closest `error.js` Error Boundary
+    const errorText = await res.text(); // Try to get the error response body
+    console.error(`Failed to fetch data from ${apiUrl}. Status: ${res.status}, StatusText: ${res.statusText}, Response: ${errorText}`);
     throw new Error('Failed to fetch data');
   }
   return res.json();
