@@ -6,7 +6,7 @@ export default async function sitemap() {
   const postEntries = posts.map((post) => ({
     url: `https://hpyhn.xyz/posts/${post.hn_id}`,
     lastModified: new Date(post.created_at),
-    changeFrequency: 'daily',
+    changeFrequency: 'hourly',
     priority: 0.7,
   }));
 
