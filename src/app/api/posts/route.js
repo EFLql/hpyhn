@@ -84,6 +84,7 @@ export async function GET(request) {
         break
     }
     
+    console.log(`Fetching posts from table: ${tableName} with limit: ${limit}`)
     const { data, error } = await supabase
       .from(tableName)
       .select(`
@@ -106,8 +107,11 @@ export async function GET(request) {
       .order('update_time', { ascending: false, nullsFirst: false })
       .limit(parseInt(limit))
     
-    if (error) throw error
-    
+    if (error) {
+      console.error('Supabase query error:', error)
+      throw error
+    }
+    console.log(`Fetched ${data.length} records from ${tableName}`)
     // 过滤掉 hn_posts 为 null 的记录并格式化数据
     let formattedHnPosts = data
       .filter(item => item.hn_posts !== null && item.update_time !== null)
@@ -133,6 +137,7 @@ export async function GET(request) {
     }
 
     if (type === 'front-page') {
+      console.log('Triggering sitemap update for front-page posts...');
       // Trigger sitemap update after successful sync
       const processedUrls = formattedHnPosts.map(post => `${process.env.PUBLIC_DOMAIN_SITE}/posts/${post.hn_id}`);
       try {
@@ -161,6 +166,7 @@ export async function GET(request) {
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     )
   } catch (error) {
+    console.error('Error fetching posts:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
