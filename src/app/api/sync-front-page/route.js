@@ -10,17 +10,30 @@ export async function GET(request) {
   }
   try {
     const result = await syncHnPosts('front_page', 60)
-    return Response.json({ 
-      success: true, 
+    return Response.json({
+      success: true,
       type: 'front_page',
       count: result.processed,
       message: `Successfully synced ${result.processed} front page posts`
-    })
+    });
   } catch (error) {
     return Response.json({ 
       success: false, 
       type: 'front_page',
       error: error.message 
     }, { status: 500 })
+  }
+
+  // Trigger sitemap update after successful sync
+  try {
+    await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/sitemap-update`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.CRON_AUTH_TOKEN}`
+      }
+    });
+    console.log('Sitemap update triggered successfully.');
+  } catch (sitemapError) {
+    console.error('Failed to trigger sitemap update:', sitemapError);
   }
 }

@@ -5,8 +5,8 @@ import Script from 'next/script' // Import the Script component
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata = {
-  title: 'HPYHN - Hacker News Clone',
-  description: 'A Hacker News clone built with Next.js',
+  title: 'Happy Hacker News with comments analysis',
+  description: 'A Hacker News tool help with analyzing comments and interests filtering.',
   icons: {
     icon: '/favicon.ico',
   },

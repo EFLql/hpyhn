@@ -1,4 +1,15 @@
-export default function sitemap() {
+import { getPosts } from '../lib/posts'; // Assuming a utility to fetch posts
+
+export default async function sitemap() {
+  const posts = await getPosts(); // Fetch all posts
+
+  const postEntries = posts.map((post) => ({
+    url: `https://hpyhn.xyz/posts/${post.hn_id}`,
+    lastModified: new Date(post.created_at),
+    changeFrequency: 'daily',
+    priority: 0.7,
+  }));
+
   return [
     {
       url: 'https://hpyhn.xyz',
@@ -29,6 +40,7 @@ export default function sitemap() {
       lastModified: new Date(),
       changeFrequency: 'daily',
       priority: 0.9,
-    }
+    },
+    ...postEntries, // Add dynamic post entries
   ];
 }
