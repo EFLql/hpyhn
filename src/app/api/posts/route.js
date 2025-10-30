@@ -131,6 +131,30 @@ export async function GET(request) {
         return timeA - timeB;
       });
     }
+
+    if (type === 'front-page') {
+      // Trigger sitemap update after successful sync
+      const processedUrls = formattedHnPosts.map(post => `${process.env.PUBLIC_DOMAIN_SITE}/posts/${post.hn_id}`);
+      try {
+        const sitemapUpdateResponse = await fetch(`${process.env.VERCEL_BACKEND_URL}/api/sitemap-update`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${process.env.CRON_AUTH_TOKEN}`
+          },
+          body: JSON.stringify({ urls: processedUrls })
+        });
+        
+        if (sitemapUpdateResponse.ok) {
+          console.log(`Sitemap update[${processedUrls.length}] triggered successfully.`);
+        } else {
+          const errorData = await sitemapUpdateResponse.json();
+          console.error('Failed to trigger sitemap update:', errorData.error);
+        }
+      } catch (sitemapError) {
+        console.error('Failed to trigger sitemap update:', sitemapError);
+      }
+    }
     
     return new Response(
       JSON.stringify(formattedHnPosts),
