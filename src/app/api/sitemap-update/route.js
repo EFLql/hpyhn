@@ -7,7 +7,7 @@ export async function POST(request) {
 
   try {
     // Ping Google to notify about sitemap update
-    const sitemapUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/sitemap.xml`;
+    const sitemapUrl = `${process.env.PUBLIC_DOMAIN_SITE}/sitemap.xml`;
     const googlePingUrl = `https://www.google.com/ping?sitemap=${encodeURIComponent(sitemapUrl)}`;
     
     const response = await fetch(googlePingUrl);
