@@ -1,3 +1,5 @@
+import { google } from 'googleapis';
+
 export async function POST(request) {
   const authHeader = request.headers.get('authorization');
 
@@ -6,19 +8,52 @@ export async function POST(request) {
   }
 
   try {
-    // Ping Google to notify about sitemap update
-    const sitemapUrl = `${process.env.PUBLIC_DOMAIN_SITE}/sitemap.xml`;
-    const googlePingUrl = `https://www.google.com/ping?sitemap=${encodeURIComponent(sitemapUrl)}`;
-    
-    const response = await fetch(googlePingUrl);
+    const { urls } = await request.json(); // Get URLs from the request body
 
-    if (!response.ok) {
-      throw new Error(`Google ping failed with status: ${response.status}`);
+    if (!urls || !Array.isArray(urls) || urls.length === 0) {
+      return Response.json({ error: 'No URLs provided for indexing.' }, { status: 400 });
     }
 
-    return Response.json({ success: true, message: 'Sitemap updated and Google notified.' });
+    const auth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: process.env.GOOGLE_CLIENT_EMAIL,
+        private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      },
+      scopes: ['https://www.googleapis.com/auth/indexing'], // Use Indexing API scope
+    });
+
+    const authClient = await auth.getClient();
+    google.options({ auth: authClient });
+
+    const indexing = google.indexing('v3');
+
+    const notifications = urls.map(url => ({
+      url: url,
+      type: 'URL_UPDATED',
+    }));
+
+    const batchSize = 100; // Max 100 notifications per batch
+    const batchResults = [];
+
+    for (let i = 0; i < notifications.length; i += batchSize) {
+      const batch = notifications.slice(i, i + batchSize);
+      try {
+        const response = await indexing.urlNotifications.batch({
+          requestBody: {
+            notifications: batch,
+          },
+        });
+        batchResults.push({ success: true, data: response.data });
+        console.log(`Successfully submitted a batch of ${batch.length} URLs for indexing.`);
+      } catch (batchError) {
+        console.error(`Failed to submit a batch of URLs for indexing:`, batchError.message);
+        batchResults.push({ success: false, error: batchError.message });
+      }
+    }
+
+    return Response.json({ success: true, message: 'URLs submitted to Google Indexing API in batches.', results: batchResults });
   } catch (error) {
-    console.error('Error updating sitemap and notifying Google:', error);
+    console.error('Error processing indexing request:', error);
     return Response.json({ success: false, error: error.message }, { status: 500 });
   }
 }

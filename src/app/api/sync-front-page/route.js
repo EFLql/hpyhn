@@ -8,14 +8,11 @@ export async function GET(request) {
   if (authHeader !== `Bearer ${process.env.CRON_AUTH_TOKEN}`) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  let processedUrls = [];
+  let result;
   try {
-    const result = await syncHnPosts('front_page', 60)
-    return Response.json({
-      success: true,
-      type: 'front_page',
-      count: result.processed,
-      message: `Successfully synced ${result.processed} front page posts`
-    });
+    result = await syncHnPosts('front_page', 60)
+    processedUrls = result.front_page ? result.front_page.map(post => `${process.env.PUBLIC_DOMAIN_SITE}/posts/${post.hn_id}`) : [];
   } catch (error) {
     return Response.json({ 
       success: false, 
@@ -26,14 +23,29 @@ export async function GET(request) {
 
   // Trigger sitemap update after successful sync
   try {
-    await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/sitemap-update`, {
+    const sitemapUpdateResponse = await fetch(`${process.env.PUBLIC_DOMAIN_SITE}/api/sitemap-update`, {
       method: 'POST',
       headers: {
+        'Content-Type': 'application/json',
         'Authorization': `Bearer ${process.env.CRON_AUTH_TOKEN}`
-      }
+      },
+      body: JSON.stringify({ urls: processedUrls })
     });
-    console.log('Sitemap update triggered successfully.');
+    
+    if (sitemapUpdateResponse.ok) {
+      console.log(`Sitemap update[${processedUrls.length}] triggered successfully.`);
+    } else {
+      const errorData = await sitemapUpdateResponse.json();
+      console.error('Failed to trigger sitemap update:', errorData.error);
+    }
   } catch (sitemapError) {
     console.error('Failed to trigger sitemap update:', sitemapError);
   }
+
+  return Response.json({
+      success: true,
+      type: 'front_page',
+      count: result.processed,
+      message: `Successfully synced ${result.processed} front page posts`
+    });
 }
