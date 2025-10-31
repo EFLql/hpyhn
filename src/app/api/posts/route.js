@@ -21,7 +21,8 @@ export async function GET(request) {
   const type = searchParams.get('type') || 'front-page'
   const hn_id = searchParams.get('hn_id')
   const limit = searchParams.get('limit') || 60
-  
+  const recentOnly = searchParams.get('recentOnly') === 'true';
+
   try {
     let query
     let tableName
@@ -108,7 +109,7 @@ export async function GET(request) {
           summary_comments
         )
       `)
-      .gte('update_time', twentyFourHoursAgo) // Add this line to filter by update_time within the last 24 hours
+      .gte('update_time', recentOnly ? twentyFourHoursAgo : '1970-01-01T00:00:00.000Z') // Apply 24-hour filter if recentOnly is true
       .order('update_time', { ascending: false, nullsFirst: false })
       .limit(parseInt(limit))
     
@@ -143,9 +144,10 @@ export async function GET(request) {
 
     if (type === 'front-page') {
       console.log('Triggering sitemap update for front-page posts...');
-      // Sort by points in descending order and take the top 6 for sitemap update
+      // URLs for Google Indexing API (top 6 posts by points)
       const top6Posts = formattedHnPosts.sort((a, b) => b.points - a.points).slice(0, 6);
-      const processedUrls = top6Posts.map(post => `${process.env.PUBLIC_DOMAIN_SITE}/posts/${post.hn_id}`);
+      const top6ProcessedUrls = top6Posts.map(post => `${process.env.PUBLIC_DOMAIN_SITE}/posts/${post.hn_id}`);
+
       try {
         const sitemapUpdateResponse = await fetch(`https://${process.env.VERCEL_BACKEND_URL}/api/sitemap-update`, {
           method: 'POST',
@@ -153,14 +155,14 @@ export async function GET(request) {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${process.env.CRON_AUTH_TOKEN}`
           },
-          body: JSON.stringify({ urls: processedUrls })
+          body: JSON.stringify({ urls: top6ProcessedUrls }) // Send only top 6 to Google API
         });
         
         if (sitemapUpdateResponse.ok) {
-          console.log(`Sitemap update[${processedUrls.length}] triggered successfully.`);
+          console.log(`Sitemap update[${top6ProcessedUrls.length}] triggered successfully for Google Indexing API.`);
         } else {
           const errorData = await sitemapUpdateResponse.json();
-          console.error('Failed to trigger sitemap update:', errorData.error);
+          console.error('Failed to trigger sitemap update for Google Indexing API:', errorData.error);
         }
       } catch (sitemapError) {
         console.error('Failed to trigger sitemap update:', sitemapError);
