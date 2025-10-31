@@ -21,7 +21,6 @@ export async function GET(request) {
   const type = searchParams.get('type') || 'front-page'
   const hn_id = searchParams.get('hn_id')
   const limit = searchParams.get('limit') || 60
-  const recentOnly = searchParams.get('recentOnly') === 'true';
 
   try {
     let query
@@ -109,7 +108,7 @@ export async function GET(request) {
           summary_comments
         )
       `)
-      .gte('update_time', recentOnly ? twentyFourHoursAgo : '1970-01-01T00:00:00.000Z') // Apply 24-hour filter if recentOnly is true
+      .gte('update_time', twentyFourHoursAgo) // Apply 24-hour filter
       .order('update_time', { ascending: false, nullsFirst: false })
       .limit(parseInt(limit))
     
