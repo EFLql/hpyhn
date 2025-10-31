@@ -85,6 +85,10 @@ export async function GET(request) {
     }
     
     console.log(`Fetching posts from table: ${tableName} with limit: ${limit}`)
+    
+    // Calculate 24 hours ago timestamp
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
     const { data, error } = await supabase
       .from(tableName)
       .select(`
@@ -104,6 +108,7 @@ export async function GET(request) {
           summary_comments
         )
       `)
+      .gte('update_time', twentyFourHoursAgo) // Add this line to filter by update_time within the last 24 hours
       .order('update_time', { ascending: false, nullsFirst: false })
       .limit(parseInt(limit))
     
