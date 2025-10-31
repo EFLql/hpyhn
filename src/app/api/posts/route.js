@@ -141,7 +141,7 @@ export async function GET(request) {
       // Trigger sitemap update after successful sync
       const processedUrls = formattedHnPosts.map(post => `${process.env.PUBLIC_DOMAIN_SITE}/posts/${post.hn_id}`);
       try {
-        const sitemapUpdateResponse = await fetch(`${process.env.VERCEL_BACKEND_URL}/api/sitemap-update`, {
+        const sitemapUpdateResponse = await fetch(`https://${process.env.VERCEL_BACKEND_URL}/api/sitemap-update`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
