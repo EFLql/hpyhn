@@ -102,6 +102,13 @@ const parseSummaryComments = (summaryCommentsInput) => {
   return { cluster_summaries: clusterSummaries, overall_comments_summary_with_sentiment: overallPostSummary };
 };
 
+export async function generateMetadata({ params }) {
+  const post = await getPost(params.id);
+  return {
+    title: post ? `${post.title} | Happy Hacker News` : 'Post Not Found',
+  };
+}
+
 export default async function PostPage(props) {
   const params = await props.params;
   const post = await getPost(params.id);
