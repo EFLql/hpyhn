@@ -138,8 +138,9 @@ export async function GET(request) {
 
     if (type === 'front-page') {
       console.log('Triggering sitemap update for front-page posts...');
-      // Trigger sitemap update after successful sync
-      const processedUrls = formattedHnPosts.map(post => `${process.env.PUBLIC_DOMAIN_SITE}/posts/${post.hn_id}`);
+      // Sort by points in descending order and take the top 6 for sitemap update
+      const top6Posts = formattedHnPosts.sort((a, b) => b.points - a.points).slice(0, 6);
+      const processedUrls = top6Posts.map(post => `${process.env.PUBLIC_DOMAIN_SITE}/posts/${post.hn_id}`);
       try {
         const sitemapUpdateResponse = await fetch(`https://${process.env.VERCEL_BACKEND_URL}/api/sitemap-update`, {
           method: 'POST',

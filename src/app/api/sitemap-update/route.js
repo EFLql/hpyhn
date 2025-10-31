@@ -37,18 +37,32 @@ export async function POST(request) {
 
     for (let i = 0; i < notifications.length; i += batchSize) {
       const batch = notifications.slice(i, i + batchSize);
-      try {
-        const response = await indexing.urlNotifications.batch({
-          requestBody: {
-            notifications: batch,
-          },
-        });
-        batchResults.push({ success: true, data: response.data });
-        console.log(`Successfully submitted a batch of ${batch.length} URLs for indexing.`);
-      } catch (batchError) {
-        console.error(`Failed to submit a batch of URLs for indexing:`, batchError.message);
-        batchResults.push({ success: false, error: batchError.message });
+      const currentBatchIndividualResults = []; // To store results for each URL in the current batch
+      let batchOverallSuccess = true;
+
+      for (const notification of batch) {
+        try {
+          const response = await indexing.urlNotifications.publish({
+            requestBody: notification, // publish expects a single UrlNotification object
+          });
+          currentBatchIndividualResults.push({ url: notification.url, success: true, data: response.data });
+        } catch (publishError) {
+          console.error(`Failed to publish URL ${notification.url}:`, publishError.message);
+          currentBatchIndividualResults.push({ url: notification.url, success: false, error: publishError.message });
+          batchOverallSuccess = false; // Mark the batch as having failures
+        }
       }
+
+      if (batchOverallSuccess) {
+        console.log(`Successfully submitted a batch of ${batch.length} URLs for indexing.`);
+      } else {
+        console.error(`Some URLs in a batch of ${batch.length} failed to submit for indexing.`);
+      }
+      batchResults.push({
+        batchSize: batch.length,
+        overallSuccess: batchOverallSuccess,
+        individualResults: currentBatchIndividualResults,
+      });
     }
 
     return Response.json({ success: true, message: 'URLs submitted to Google Indexing API in batches.', results: batchResults });
