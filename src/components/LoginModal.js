@@ -27,7 +27,12 @@ export default function LoginModal({ isOpen, onClose, onRegisterClick }) {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Login failed')
+        if (data.error && data.error.includes('Invalid login credentials')) {
+          setMessage('No account found with these credentials. Please sign up.');
+        } else {
+          throw new Error(data.error || 'Login failed');
+        }
+        return;
       }
 
       setMessage('Login successful!')
@@ -115,6 +120,14 @@ export default function LoginModal({ isOpen, onClose, onRegisterClick }) {
                 : 'bg-red-100 border-red-400 text-red-700'
             }`}>
               {message}
+              {message.includes('No account found') && (
+                <button 
+                  onClick={onRegisterClick}
+                  className="ml-2 text-blue-700 hover:underline font-medium"
+                >
+                  Sign up here
+                </button>
+              )}
             </div>
           )}
           

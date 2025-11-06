@@ -1787,7 +1787,9 @@ export default function Home({ initialType, session: dontMissSession, subscripti
       </main>
       
       <footer className="text-center py-4 text-xs text-gray-500">
-        <Link href="/blog/" className="hover:underline">blog</Link>  
+        <Link href="/blog/" className="hover:underline">blog</Link>
+        <span className="mx-2">|</span> {/* Add a separator */}
+        <Link href="https://x.com/liqilin3" target="_blank" rel="noopener noreferrer" className="hover:underline">Contact Me</Link>
       </footer>
 
       <LoginModal 

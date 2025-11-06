@@ -30,29 +30,20 @@ export async function POST(request) {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        emailRedirectTo: `${process.env.NEXT_PUBLIC_BASE_URL}/auth/callback`,
+        data: {
+          username: username,
+        },
+      },
     })
-
+    console.log('Sign up data:', data)
     if (error) {
+      console.error('Error during sign up:', error)
       return new Response(
         JSON.stringify({ error: error.message }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       )
-    }
-
-    // 然后将用户名插入到 users 表中
-    if (data.user) {
-      const { error: insertError } = await supabase
-        .from('users')
-        .insert([
-          { id: data.user.id, username }
-        ])
-        
-      if (insertError) {
-        return new Response(
-          JSON.stringify({ error: insertError.message }),
-          { status: 400, headers: { 'Content-Type': 'application/json' } }
-        )
-      }
     }
 
     return new Response(

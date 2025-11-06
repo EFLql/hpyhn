@@ -33,9 +33,7 @@ export default function RegisterModal({ isOpen, onClose, onLoginClick }) {
 
       setMessage('Signup successful! Please check your email for confirmation.')
 
-      setTimeout(() => {
-        onClose()
-      }, 2000)
+      // Removed the setTimeout to keep the modal open for email verification
     } catch (error) {
       setMessage(error.message)
     } finally {
