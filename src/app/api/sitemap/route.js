@@ -2,6 +2,9 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
 export async function GET(request) {
+  const { searchParams } = new URL(request.url);
+  const page = searchParams.get('page');
+  
   const cookieStore = await cookies()
   
   const supabase = createServerClient(
@@ -18,7 +21,8 @@ export async function GET(request) {
 
   const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString();
 
-  const { data, error } = await supabase
+  const ITEMS_PER_PAGE = 60;
+  let query = supabase
     .from('hn_front_page_posts')
     .select(`
       post_id,
@@ -26,6 +30,15 @@ export async function GET(request) {
     `)
     .gte('update_time', fiveDaysAgo)
     .order('update_time', { ascending: false });
+
+  if (page && !isNaN(page) && page >= 1 && page <= 6) {
+    const pageNum = parseInt(page);
+    const offset = (pageNum - 1) * ITEMS_PER_PAGE;
+    const limit = ITEMS_PER_PAGE;
+    query = query.range(offset, offset + limit - 1);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('Error fetching posts for sitemap:', error);
