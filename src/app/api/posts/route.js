@@ -144,7 +144,7 @@ export async function GET(request) {
     if (type === 'front-page') {
       console.log('Triggering sitemap update for front-page posts...');
       // URLs for Google Indexing API (top 6 posts by points)
-      const top6Posts = formattedHnPosts.sort((a, b) => b.points - a.points).slice(0, 6);
+      const top6Posts = [...formattedHnPosts].sort((a, b) => b.points - a.points).slice(0, 6);
       const top6ProcessedUrls = top6Posts.map(post => `${process.env.PUBLIC_DOMAIN_SITE}/posts/${post.hn_id}`);
 
       try {
