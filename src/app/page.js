@@ -11,7 +11,7 @@ import ReactMarkdown from 'react-markdown'; // Import ReactMarkdown
 import remarkGfm from 'remark-gfm'; // Import remarkGfm
 
 export default function Home({ initialType, session: dontMissSession, subscription: dontMissSubscription, loading: dontMissLoading, isLoginOpen: dontMissIsLoginOpen, setIsLoginOpen: setDontMissIsLoginOpen }) {
-  const router = useRouter()
+  const router = useRouter();
   const pathname = usePathname()
   const [posts, setPosts] = useState([])
   const [loadingPosts, setLoadingPosts] = useState(true) // Renamed from setLoading to avoid conflict with dontMissLoading
@@ -807,6 +807,24 @@ export default function Home({ initialType, session: dontMissSession, subscripti
       // Revert optimistic UI updates if network error
     }
   };
+
+    // Add this useEffect to handle redirection for unauthenticated users
+  useEffect(() => {
+    const checkAuthAndRedirect = async () => {
+      const sessionResponse = await fetch('/api/auth/session');
+      const sessionData = await sessionResponse.json();
+      const hasVisitedMainPage = sessionStorage.getItem('hasVisitedMainPage'); // Get the flag
+
+      // Only redirect to landing page if unauthenticated, on the root path,
+      // AND NOT coming from the landing page (to prevent redirect loop),
+      // AND has NOT explicitly visited the main page in this session.
+      if (!sessionData.session && pathname === '/' && !hasVisitedMainPage) {
+        router.replace('/landing');
+      }
+    };
+
+    checkAuthAndRedirect();
+  }, [pathname, router]);
 
   return (
     <div className="w-full sm:w-4/5 mx-auto px-4 py-2 bg-orange-50 relative min-h-screen">
