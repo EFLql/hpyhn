@@ -82,7 +82,7 @@ export default function LandingPage() {
             <ImageGallery images={[
               { src: '/Part1_unstructured_comments.png', alt: 'Unstructured Comments' },
               { src: '/part1_structured_themes.png', alt: 'Structured Themes' },
-              { src: '/part1_3.png', alt: 'group comments' },
+              { src: '/Part1_3.png', alt: 'group comments' },
             ]} />
           </div>
         </section>
@@ -102,7 +102,7 @@ export default function LandingPage() {
           <div className="md:w-1/2 p-4">
             <ImageGallery images={[
               { src: '/part2.png', alt: 'One-Sentence Post Summary' },
-              { src: '/part2_2.png', alt: 'if it\'s worth a deep dive' }
+              { src: '/Part2_2.png', alt: 'if it\'s worth a deep dive' }
             ]} />
           </div>
         </section>
