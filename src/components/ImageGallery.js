@@ -53,7 +53,7 @@ const ImageGallery = ({ images }) => {
     <div className="image-gallery w-full">
       {images.length > 0 && (
         <div className="cursor-pointer relative flex items-center justify-center bg-gray-100 rounded-lg shadow-md" onClick={() => openModal(images[0])}>
-          <Image src={images[0].src} alt={images[0].alt} layout="responsive" width={700} height={475} objectFit="contain" className="rounded-lg" />
+            <Image src={images[0].src} alt={images[0].alt} width={700} height={475} style={{ objectFit: 'contain' }} className="rounded-lg" />
         </div>
       )}
 
@@ -68,7 +68,7 @@ const ImageGallery = ({ images }) => {
               onTouchStart={handleTouchStart}
               onTouchEnd={handleTouchEnd}
             >
-              <Image src={mainImageInModal.src} alt={mainImageInModal.alt} layout="fill" objectFit="contain" />
+              <Image src={mainImageInModal.src} alt={mainImageInModal.alt} fill style={{ objectFit: 'contain' }} />
 
               {/* Previous Button */}
               <button
@@ -89,7 +89,7 @@ const ImageGallery = ({ images }) => {
             <div className="flex justify-center mt-2 md:mt-4 space-x-2">
               {images.map((image, index) => (
                 <div key={index} className={`cursor-pointer ${image === mainImageInModal ? 'border-2 border-orange-500' : ''}`} onClick={(e) => { e.stopPropagation(); setMainImageInModal(image); }}>
-                  <Image src={image.src} alt={image.alt} width={120} height={80} objectFit="cover" className="rounded-md" />
+                  <Image src={image.src} alt={image.alt} width={120} height={80} style={{ objectFit: 'cover' }} className="rounded-md" />
                 </div>
               ))}
             </div>
