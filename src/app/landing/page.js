@@ -1,6 +1,9 @@
 'use client';
 import Link from 'next/link';
 import ImageGallery from '../../components/ImageGallery';
+import LoginModal from '../../components/LoginModal';
+import RegisterModal from '../../components/RegisterModal';
+import { useState } from 'react';
 
 export function ClientLink({ href, className, children }) {
   const handleClick = () => {
@@ -15,6 +18,18 @@ export function ClientLink({ href, className, children }) {
 }
 
 export default function LandingPage() {
+  const [showLogin, setShowLogin] = useState(false);
+  const [showRegister, setShowRegister] = useState(false);
+  const handleLoginClick = () => {
+    setShowLogin(true);
+    setShowRegister(false);
+  };
+  const handleCloseLogin = () => setShowLogin(false);
+  const handleRegisterClick = () => {
+    setShowLogin(false);
+    setShowRegister(true);
+  };
+  const handleCloseRegister = () => setShowRegister(false);
   return (
     <div className="w-full sm:w-4/5 mx-auto px-4 py-2 bg-orange-50 relative min-h-screen">
       {/* Header */}
@@ -61,7 +76,7 @@ export default function LandingPage() {
               <p className="text-md text-gray-700 font-semibold font-serif mt-4">Valuable knowledge, information, and multiple perspectives from comments</p>
             </div>
           </div>
-          <button className="px-8 py-3 bg-orange-500 text-white text-xl font-semibold rounded-md hover:bg-orange-600 transition-colors">
+          <button className="px-8 py-3 bg-orange-500 text-white text-xl font-semibold rounded-md hover:bg-orange-600 transition-colors" onClick={handleLoginClick}>
             Register Now
           </button>
         </section>
@@ -74,7 +89,7 @@ export default function LandingPage() {
               Tired of sifting through hundreds of comments to find valuable insights? We analyze lengthy comment sections,
               grouping comments spread across entire threads under the same theme, so you can easily see multiple perspectives.
             </p>
-            <button className="px-6 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors">
+            <button className="px-6 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors" onClick={handleLoginClick}>
               Register to Analyze Comments
             </button>
           </div>
@@ -95,7 +110,7 @@ export default function LandingPage() {
               Never waste time on irrelevant articles again. We provide a concise one-sentence summary and extract tags and keywords for each post,
               allowing you to quickly decide if it's worth a deeper dive.
             </p>
-            <button className="px-6 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors">
+            <button className="px-6 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors" onClick={handleLoginClick}>
               Register for Post Summaries
             </button>
           </div>
@@ -116,7 +131,7 @@ export default function LandingPage() {
               Our neural network model scores each post based on your interests, allowing you to prioritize what matters most. 
               You'll see more of what you love, without completely missing out on diverse perspectives.
             </p>
-            <button className="px-6 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors">
+            <button className="px-6 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors" onClick={handleLoginClick}>
               Register for Personalized Feeds
             </button>
           </div>
@@ -137,7 +152,7 @@ export default function LandingPage() {
               You might miss interesting posts while you are busy with work, studying or taking holidays. Our "Don't Miss" section curates posts you would have
               loved, ensuring you're always up-to-date with content relevant to your interests.
             </p>
-            <button className="px-6 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors">
+            <button className="px-6 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 transition-colors" onClick={handleLoginClick}>
               Register for "Don't Miss"
             </button>
           </div>
@@ -164,6 +179,12 @@ export default function LandingPage() {
         <span className="mx-2">|</span>
         <Link href="https://x.com/liqilin3" target="_blank" rel="noopener noreferrer" className="hover:underline">Contact Me</Link>
       </footer>
+      {showLogin && (
+        <LoginModal isOpen={showLogin} onClose={handleCloseLogin} onRegisterClick={handleRegisterClick} />
+      )}
+      {showRegister && (
+        <RegisterModal isOpen={showRegister} onClose={handleCloseRegister} onLoginClick={handleLoginClick} />
+      )}
     </div>
   );
 }

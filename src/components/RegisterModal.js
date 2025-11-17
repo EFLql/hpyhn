@@ -41,22 +41,16 @@ export default function RegisterModal({ isOpen, onClose, onLoginClick }) {
     }
   }
 
-  const handleBackgroundClick = (e) => {
-    if (e.target === e.currentTarget) {
-      onClose()
-    }
-  }
+  // 移除遮罩点击关闭逻辑，只允许点击关闭按钮关闭
 
   if (!isOpen) return null
 
   return (
     <div 
       className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-      onClick={handleBackgroundClick}
     >
       <div 
         className="bg-orange-50 rounded-lg shadow-xl w-full max-w-md mx-4"
-        onClick={(e) => e.stopPropagation()}
       >
         <header className="bg-orange-500 py-2 px-4 flex justify-between items-center rounded-t-lg">
           <div className="flex items-center">
